@@ -1,0 +1,172 @@
+@startuml 05_Backend_Memory_System
+skinparam backgroundColor #FFFFFF
+skinparam classAttributeIconSize 0
+skinparam classFontSize 9
+skinparam classFontColor #000000
+skinparam classHeaderBackgroundColor #FFFFFF
+skinparam classHeaderFontColor #000000
+skinparam classBorderColor #000000
+skinparam classBackgroundColor #FFFFFF
+skinparam arrowColor #000000
+skinparam arrowFontColor #000000
+skinparam arrowFontSize 8
+skinparam noteBorderColor #000000
+skinparam noteBackgroundColor #FFFFFF
+skinparam noteFontColor #000000
+skinparam noteFontSize 8
+skinparam packageBorderColor #000000
+skinparam packageBackgroundColor #FFFFFF
+skinparam packageFontColor #000000
+skinparam packageFontStyle bold
+skinparam shadowing false
+skinparam linetype ortho
+skinparam dpi 120
+
+title Diagram 5 — Backend Module: Memory System (Persistence & Extraction)
+
+package "Memory System Module" {
+
+    ' ── Service ──────────────────────────────────────────────────
+    class MemoryService {
+        - db_path : String
+        --
+        + add_fact(user_id : String, fact_type : String, fact_key : String, fact_value : String, confidence : float) : bool
+        + get_fact(user_id : String, fact_type : String, fact_key : String) : String
+        + get_facts(user_id : String, fact_type : String) : List<UserFact>
+        + delete_fact(user_id : String, fact_type : String, fact_key : String) : bool
+        + add_conversation_turn(user_id : String, role : String, message : String) : bool
+        + get_recent_conversations(user_id : String, limit : int) : List<ConversationTurn>
+        + build_memory_context(user_id : String, max_facts : int) : String
+        + clear_user_memory(user_id : String) : bool
+        - _init_database()
+        - _create_tables(cursor : Cursor)
+        - _create_indexes(cursor : Cursor)
+    }
+
+    ' ── Persisted Entities ───────────────────────────────────────
+    class UserFact {
+        + id         : int
+        + user_id    : String
+        + fact_type  : String
+        + fact_key   : String
+        + fact_value : String
+        + confidence : float
+        + created_at : DateTime
+        + updated_at : DateTime
+    }
+    note right of UserFact
+      fact_type examples:
+      - "name" (first_name, preferred_name)
+      - "preference" (language, topic)
+      - "device_info"
+      - "location"
+      UNIQUE(user_id, fact_type, fact_key)
+      → UPSERT on conflict
+    end note
+
+    class ConversationTurn {
+        + id        : int
+        + user_id   : String
+        + role      : String
+        + message   : String
+        + timestamp : DateTime
+        + metadata  : Dict
+    }
+    note right of ConversationTurn
+      role: "user" | "assistant"
+      Indexed by (user_id, timestamp DESC)
+      for efficient recent-history queries.
+    end note
+
+    ' ── Extractor ────────────────────────────────────────────────
+    class MemoryExtractor {
+        - llm_client       : LLMClient
+        - memory_service   : MemoryService
+        - enable_cache     : bool
+        - extraction_cache : Dict<String, ExtractionResult>
+        - extraction_prompt : String
+        --
+        + extract_from_conversation(user_message : String, user_id : String, assistant_response : String, store_results : bool) : ExtractionResult
+        - _store_entities(user_id : String, entities : List<Entity>)
+        - _store_emotion(user_id : String, emotion : String)
+        - _build_extraction_prompt(context : String) : String
+        - _parse_llm_json(raw : String) : Dict
+    }
+
+    ' ── Value Objects ────────────────────────────────────────────
+    class ExtractionResult {
+        + entities     : List<Entity>
+        + emotion      : String
+        + intent       : String
+        + summary      : String
+        + extracted_at : DateTime
+    }
+
+    class Entity {
+        + type       : String
+        + name       : String
+        + confidence : float
+    }
+    note right of Entity
+      type values:
+      food | device | person
+      location | object
+    end note
+}
+
+' ── SQLite Schema (conceptual) ────────────────────────────────
+package "SQLite Storage" {
+    class "Table: user_facts" as TBL_FACTS <<table>> {
+        + id INTEGER PK
+        + user_id TEXT
+        + fact_type TEXT
+        + fact_key TEXT
+        + fact_value TEXT
+        + confidence REAL
+        + created_at TEXT
+        + updated_at TEXT
+        .. UNIQUE(user_id, fact_type, fact_key) ..
+    }
+
+    class "Table: conversations" as TBL_CONV <<table>> {
+        + id INTEGER PK
+        + user_id TEXT
+        + role TEXT
+        + message TEXT
+        + timestamp TEXT
+        + metadata TEXT (JSON)
+        .. INDEX(user_id, timestamp DESC) ..
+    }
+}
+
+' ─── RELATIONSHIPS ───────────────────────────────────────────────
+MemoryService "1" *-- "0..*" UserFact         : persists >
+MemoryService "1" *-- "0..*" ConversationTurn : records >
+
+MemoryExtractor o-- LLMClient     : uses for analysis >
+MemoryExtractor o-- MemoryService : stores results into >
+MemoryExtractor ..> ExtractionResult : produces >
+ExtractionResult "1" *-- "0..*" Entity : contains >
+
+MemoryService ..> TBL_FACTS : maps to >
+MemoryService ..> TBL_CONV  : maps to >
+
+UserFact         ..> TBL_FACTS : stored in >
+ConversationTurn ..> TBL_CONV  : stored in >
+
+note bottom of MemoryExtractor
+  Extraction prompt asks LLM to return
+  structured JSON (entities, emotion, intent, summary).
+  Cache key = user_id + first 50 chars of message.
+  Non-blocking: extraction failures don't interrupt
+  the main conversation pipeline.
+end note
+
+note bottom of MemoryService
+  build_memory_context() produces a structured
+  text block injected into the LLM system prompt.
+  Only structured facts are injected (not raw
+  conversation history) to prevent topic anchoring.
+end note
+
+@enduml

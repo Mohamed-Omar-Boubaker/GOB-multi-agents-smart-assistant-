@@ -1,0 +1,122 @@
+{
+  "name": "GOB Reminder System - ICS Calendar (Fixed)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "reminder",
+        "responseMode": "lastNode"
+      },
+      "id": "webhook_in",
+      "name": "Webhook In",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body ?? $input.first().json;\n\nconst title = (body.title || 'Rappel').trim();\nconst description = (body.description || '').trim();\nconst datetimeRaw = body.reminder_datetime;\nconst userId = body.user_id || 'default_user';\nconst timezone = body.timezone || 'Africa/Tunis';\nconst lang = (body.language || 'fr').toLowerCase();\nconst callbackUrl = body.callback_url || '';\n\n// 🔒 SECURITY: restrict callback\nif (!callbackUrl.startsWith('http://localhost:8000') && !callbackUrl.startsWith('https://yourdomain.com')) {\n  throw new Error('Invalid callback_url');\n}\n\nconst actionId = body.action_id || 'reminder_' + Date.now() + '_' + userId.replace(/[^a-z0-9]/gi, '_');\n\nif (!datetimeRaw) throw new Error('VALIDATION_ERROR: reminder_datetime required');\n\nconst reminderMs = Date.parse(datetimeRaw);\nif (isNaN(reminderMs)) throw new Error('Invalid datetime: ' + datetimeRaw);\nif (reminderMs <= Date.now() + 30000) throw new Error('Datetime must be 30s in future');\n\nconst startDate = new Date(reminderMs);\nconst endDate = new Date(reminderMs + 30 * 60 * 1000);\n\nlet localTime;\ntry {\n  localTime = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-TN' : lang === 'en' ? 'en-US' : 'fr-FR', {\n    timeZone: timezone, dateStyle: 'full', timeStyle: 'short'\n  }).format(startDate);\n} catch(e) { localTime = startDate.toISOString(); }\n\nconst msgs = {\n  fr: { confirm: 'Rappel programme : ' + title + ' le ' + localTime, alert: 'Rappel ! ' + title + '. Il est l heure.' },\n  en: { confirm: 'Reminder set: ' + title + ' on ' + localTime, alert: 'Reminder! ' + title + '. It is time.' },\n  ar: { confirm: 'تم ضبط التذكير: ' + title + ' في ' + localTime, alert: 'تذكير! ' + title + '. حان الوقت.' }\n};\n\nconst msg = msgs[lang] || msgs.fr;\n\nreturn [{ json: {\n  title, description,\n  reminder_datetime: datetimeRaw,\n  reminder_datetime_ms: reminderMs,\n  start_iso: startDate.toISOString(),\n  end_iso: endDate.toISOString(),\n  user_id: userId,\n  timezone,\n  language: lang,\n  callback_url: callbackUrl,\n  action_id: actionId,\n  confirm_message: msg.confirm,\n  tts_text: msg.alert,\n  created_at: new Date().toISOString()\n}}];"
+      },
+      "id": "parse_validate",
+      "name": "Parse and Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nfunction formatICS(d) {\n  return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';\n}\n\nfunction escapeICS(text) {\n  return text\n    .replace(/\\\\/g, '\\\\\\\\')\n    .replace(/\\n/g, '\\\\n')\n    .replace(/,/g, '\\\\,')\n    .replace(/;/g, '\\\\;');\n}\n\nconst startDate = new Date(data.reminder_datetime_ms);\nconst endDate = new Date(data.reminder_datetime_ms + 30 * 60 * 1000);\nconst now = new Date();\n\nconst title = escapeICS(data.title);\nconst description = escapeICS(data.description || data.title);\n\nconst ics = [\n  'BEGIN:VCALENDAR',\n  'VERSION:2.0',\n  'PRODID:-//GOB AI//EN',\n  'BEGIN:VEVENT',\n  'UID:' + data.action_id + '@gob',\n  'DTSTAMP:' + formatICS(now),\n  'DTSTART:' + formatICS(startDate),\n  'DTEND:' + formatICS(endDate),\n  'SUMMARY:' + title,\n  'DESCRIPTION:' + description,\n  'BEGIN:VALARM',\n  'TRIGGER:-PT10M',\n  'ACTION:DISPLAY',\n  'DESCRIPTION:Reminder in 10 min',\n  'END:VALARM',\n  'BEGIN:VALARM',\n  'TRIGGER:-PT5M',\n  'ACTION:DISPLAY',\n  'DESCRIPTION:Reminder in 5 min',\n  'END:VALARM',\n  'BEGIN:VALARM',\n  'TRIGGER:PT0S',\n  'ACTION:DISPLAY',\n  'DESCRIPTION:NOW',\n  'END:VALARM',\n  'END:VEVENT',\n  'END:VCALENDAR'\n].join('\\r\\n');\n\nconst icsBase64 = Buffer.from(ics).toString('base64');\n\nreturn [{ json: {\n  ...data,\n  ics_content: ics,\n  ics_base64: icsBase64\n}}];"
+      },
+      "id": "generate_ics",
+      "name": "Generate ICS File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.callback_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action_id: $json.action_id, status: 'confirmed', title: $json.title, reminder_datetime: $json.reminder_datetime, confirm_message: $json.confirm_message, ics_base64: $json.ics_base64, user_id: $json.user_id, language: $json.language }) }}"
+      },
+      "id": "callback_created",
+      "name": "Callback Created",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [960, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'success', action_id: $json.action_id, message: $json.confirm_message, reminder_datetime: $json.reminder_datetime, ics_base64: $json.ics_base64 }) }}"
+      },
+      "id": "respond_webhook",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.reminder_datetime_ms }}",
+        "unit": "exactDateTime"
+      },
+      "id": "wait_node",
+      "name": "Wait Until Time",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [720, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nconst mqttPayload = JSON.stringify({\n  type: 'reminder_alert',\n  user_id: data.user_id,\n  title: data.title,\n  action_id: data.action_id,\n  fired_at: new Date().toISOString()\n});\n\nreturn [{ json: {\n  callback_url: data.callback_url,\n  action_id: data.action_id,\n  title: data.title,\n  tts_text: data.tts_text,\n  user_id: data.user_id,\n  language: data.language,\n  mqtt_topic: 'device/reminder/' + data.user_id,\n  mqtt_payload: mqttPayload,\n  fired_at: new Date().toISOString()\n}}];"
+      },
+      "id": "build_alert",
+      "name": "Build Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 440]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.callback_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action_id: $json.action_id, status: 'fired', title: $json.title, tts_text: $json.tts_text, mqtt_topic: $json.mqtt_topic, mqtt_payload: $json.mqtt_payload, user_id: $json.user_id, language: $json.language, fired_at: $json.fired_at }) }}"
+      },
+      "id": "callback_fired",
+      "name": "Callback Fired",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1200, 440]
+    }
+  ],
+  "connections": {
+    "Webhook In": {
+      "main": [[{ "node": "Parse and Validate", "type": "main", "index": 0 }]]
+    },
+    "Parse and Validate": {
+      "main": [[
+        { "node": "Generate ICS File", "type": "main", "index": 0 },
+        { "node": "Wait Until Time", "type": "main", "index": 0 }
+      ]]
+    },
+    "Generate ICS File": {
+      "main": [[{ "node": "Callback Created", "type": "main", "index": 0 }]]
+    },
+    "Callback Created": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    },
+    "Wait Until Time": {
+      "main": [[{ "node": "Build Alert", "type": "main", "index": 0 }]]
+    },
+    "Build Alert": {
+      "main": [[{ "node": "Callback Fired", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Tunis"
+  }
+}

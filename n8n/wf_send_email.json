@@ -1,0 +1,427 @@
+﻿{
+  "name": "Send Email - Envoi Email",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send_email",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "390af325-92c6-4e4f-95e9-5ac30524c8f2",
+      "name": "Webhook - Receive Email Action",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        16,
+        368
+      ],
+      "webhookId": "send-email-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "const received = $input.item.json;\nconst action = received.body || received;\nconst payload = action.payload || {};\nconst language = (action.context?.language || action.language || 'fr').toLowerCase();\n\nreturn {\n  json: {\n    action_id: action.action_id || 'unknown',\n    intent: action.intent || 'send_email',\n    user_id: action.user_id || 'unknown',\n    language,\n    recipient: payload.recipient || 'destinataire',\n    recipient_email: payload.recipient_email || '',\n    subject: payload.subject || 'Sans sujet',\n    body: payload.body || 'Bonjour, ceci est un message automatique.',\n    cc: payload.cc || [],\n    bcc: payload.bcc || []\n  }\n};"
+      },
+      "id": "1025ed3d-dcf1-4c11-9612-878650a30f33",
+      "name": "Extract Email Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        240,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = $input.item.json;\nif (!j.recipient_email) {\n  throw new Error(`Email destinataire manquant pour ${j.recipient}`);\n}\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nif (!emailRegex.test(j.recipient_email)) {\n  throw new Error(`Format email invalide: ${j.recipient_email}`);\n}\nreturn { json: j };"
+      },
+      "id": "c32fc76e-1256-4da6-ad29-fbefeb579705",
+      "name": "Validate Recipient",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        432,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "nawaramontassar@gmail.com",
+        "toEmail": "={{$json.recipient_email}}",
+        "subject": "={{$json.subject}}",
+        "text": "={{$json.choices[0].message.content}}",
+        "options": {
+          "allowUnauthorizedCerts": false
+        }
+      },
+      "id": "b64e9860-4d47-4d5a-984c-9b65d6ab71ed",
+      "name": "Send Email via Gmail SMTP",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        976,
+        352
+      ],
+      "webhookId": "6e14fc3e-05ae-40a8-acd6-e2fcf463b6da",
+      "credentials": {
+        "smtp": {
+          "id": "bUrKMmZMzVkunZwb",
+          "name": "SMTP account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.error ? 'yes' : 'no'}}",
+              "value2": "yes"
+            }
+          ]
+        }
+      },
+      "id": "97a403a6-0b63-4569-affe-067cb4d319cd",
+      "name": "IF Send Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1168,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = $input.item.json;\nconst msg = j.error?.message || j.error || 'Email send failed';\nreturn {\n  json: {\n    ...j,\n    status: 'failed',\n    result: null,\n    error: msg,\n    voice_text: (j.language === 'en') ? `The email was not sent to ${j.recipient}.` : (j.language === 'ar' ? `لم يتم ارسال البريد الى ${j.recipient}.` : `L'email n'a pas ete envoye a ${j.recipient}.`)\n  }\n};"
+      },
+      "id": "a92c31bd-82c3-4e08-9db4-4045050b493d",
+      "name": "Build Failure Result",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1376,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = $item(0).$node['Validate Recipient'].json;\nreturn {\n  json: {\n    ...j,\n    status: 'success',\n    result: { recipient: j.recipient, recipient_email: j.recipient_email, subject: j.subject },\n    error: null,\n    voice_text: (j.language === 'en') ? `The email was sent to ${j.recipient}.` : (j.language === 'ar' ? `تم ارسال البريد الى ${j.recipient}.` : `L'email a ete envoye a ${j.recipient}.`)\n  }\n};"
+      },
+      "id": "248e8a6f-6a61-4648-b8ae-c1aa10d2cb1d",
+      "name": "Build Success Result",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1376,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8005/tts",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { text: $json.voice_text, request_id: $execution.id, action_id: $json.action_id } }}",
+        "options": {}
+      },
+      "id": "21870971-81be-4a1e-9189-401f25ab0605",
+      "name": "Generate TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1600,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const tts = $input.item.json;\nlet base = {};\ntry { base = $item(0).$node['Build Success Result'].json; } catch (e) {}\nif (!base.status) {\n  try { base = $item(0).$node['Build Failure Result'].json; } catch (e) {}\n}\nconst audioUrl = tts.audio_url || tts.body?.audio_url;\nreturn {\n  json: {\n    ...base,\n    audio_url: audioUrl,\n    mqtt_voice_topic: 'gob/audio/tts/request',\n    mqtt_voice_payload: {\n      request_id: $execution.id,\n      action_id: base.action_id,\n      user_id: base.user_id,\n      lang: base.language || 'fr',\n      text: base.voice_text || '',\n      url: audioUrl,\n      ts: Math.floor(Date.now() / 1000)\n    }\n  }\n};"
+      },
+      "id": "753c00f1-3e63-44ec-acbd-87c9e057c141",
+      "name": "Build Voice MQTT Payload",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1792,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "topic": "={{$json.mqtt_voice_topic}}",
+        "sendInputData": false,
+        "message": "={{ JSON.stringify($json.mqtt_voice_payload) }}",
+        "options": {
+          "qos": 1
+        }
+      },
+      "id": "a5d674c7-d8b8-446f-8f8b-144a0589a1f1",
+      "name": "Publish Voice MQTT",
+      "type": "n8n-nodes-base.mqtt",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        352
+      ],
+      "credentials": {
+        "mqtt": {
+          "id": "2HlIZ1xVzlUk9hgc",
+          "name": "MQTT account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/callback/n8n",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { action_id: $json.action_id, status: $json.status, result: $json.result, error: $json.error, execution_time_ms: null } }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "84041aee-7044-45ae-9cf6-9cab19bc9850",
+      "name": "Callback Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        2192,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ action_id: $json.action_id, status: $json.status, result: $json.result, error: $json.error, audio_url: $json.audio_url }) }}",
+        "options": {}
+      },
+      "id": "7c041735-7407-46ff-ba99-17e43754c1e6",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer  "
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"meta-llama/llama-4-scout-17b-16e-instruct\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an email generation engine. You must generate ONLY the email body. No explanations. No examples. No questions. No extra text.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Write a short friendly email.\\nRecipient: {{$json.recipient}}\\nSubject: {{$json.subject}}\\nLanguage: {{$json.context.language}}\\nOutput only the email body.\"\n    }\n  ],\n  \"temperature\": 0.4,\n  \"max_tokens\": 120\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        560,
+        576
+      ],
+      "id": "46bd1b1a-1345-476f-8cec-9b8d5b9e6db7",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        752,
+        368
+      ],
+      "id": "5d42b634-0b99-498f-8c83-ccdc389b1323",
+      "name": "Merge1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Receive Email Action": {
+      "main": [
+        [
+          {
+            "node": "Extract Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Email Data": {
+      "main": [
+        [
+          {
+            "node": "Validate Recipient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Recipient": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email via Gmail SMTP": {
+      "main": [
+        [
+          {
+            "node": "IF Send Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Send Failed": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Success Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Failure Result": {
+      "main": [
+        [
+          {
+            "node": "Generate TTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Success Result": {
+      "main": [
+        [
+          {
+            "node": "Generate TTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate TTS": {
+      "main": [
+        [
+          {
+            "node": "Build Voice MQTT Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Voice MQTT Payload": {
+      "main": [
+        [
+          {
+            "node": "Publish Voice MQTT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish Voice MQTT": {
+      "main": [
+        [
+          {
+            "node": "Callback Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback Backend": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Send Email via Gmail SMTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "2bfe66ef-7548-4053-b960-af7f0e7139b5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "94e0978e0fa5f438c52ed3596bba774713a88da1977e909f23ec9cdf88b64238"
+  },
+  "id": "2cREWUB0wOE39P9vKfdCz",
+  "tags": []
+}

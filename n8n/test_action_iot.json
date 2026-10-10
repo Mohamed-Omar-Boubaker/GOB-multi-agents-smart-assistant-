@@ -1,0 +1,19 @@
+{
+  "action_id": "act_test_lamp_001",
+  "user_id": "test_user",
+  "intent": "control_iot",
+  "payload": {
+    "device_id": "lamp_living_room",
+    "device_type": "lamp",
+    "action": "turn_on",
+    "location": "living_room"
+  },
+  "original_text": "Turn on the lamp in the living room",
+  "language": "en",
+  "confirmed": true,
+  "state": "CONFIRMED",
+  "timestamp": "2026-02-16T10:00:00Z",
+  "request_id": "req_test_001",
+  "signature": "PLACEHOLDER_WILL_BE_CALCULATED_BY_BACKEND",
+  "signed_at": "2026-02-16T10:00:00Z"
+}

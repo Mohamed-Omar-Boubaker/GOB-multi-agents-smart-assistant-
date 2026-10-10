@@ -1,0 +1,191 @@
+@startuml 06_Backend_Integrations
+skinparam backgroundColor #FFFFFF
+skinparam classAttributeIconSize 0
+skinparam classFontSize 9
+skinparam classFontColor #000000
+skinparam classHeaderBackgroundColor #FFFFFF
+skinparam classHeaderFontColor #000000
+skinparam classBorderColor #000000
+skinparam classBackgroundColor #FFFFFF
+skinparam arrowColor #000000
+skinparam arrowFontColor #000000
+skinparam arrowFontSize 8
+skinparam noteBorderColor #000000
+skinparam noteBackgroundColor #FFFFFF
+skinparam noteFontColor #000000
+skinparam noteFontSize 8
+skinparam packageBorderColor #000000
+skinparam packageBackgroundColor #FFFFFF
+skinparam packageFontColor #000000
+skinparam packageFontStyle bold
+skinparam shadowing false
+skinparam linetype ortho
+skinparam dpi 120
+
+title Diagram 6 — Backend Module: Integrations (MQTT / n8n / Contacts / Devices)
+
+package "Integrations Module" {
+
+    ' ── MQTT ─────────────────────────────────────────────────────
+    class MQTTClient {
+        - broker           : String
+        - port             : int
+        - username         : String
+        - password         : String
+        - enabled          : bool
+        - connected        : bool
+        - client_id        : String
+        - message_callback : Callable
+        --
+        + connect() : bool
+        + disconnect()
+        + publish(topic : String, message : Dict, qos : int) : MQTTPublishResult
+        + publish_audio(audio_data : String, user_id : String) : MQTTPublishResult
+        + subscribe(topic : String, callback : Callable) : Dict
+        + is_connected() : bool
+        - _initialize_client()
+        - _on_connect(client, userdata, flags, rc)
+        - _on_disconnect(client, userdata, rc)
+        - _on_message(client, userdata, msg)
+    }
+
+    class MQTTPublishResult {
+        + status       : String
+        + topic        : String
+        + message_id   : String
+        + published_at : DateTime
+    }
+
+    class MQTTTopics <<value>> {
+        + AUDIO_OUT      : String = "device/audio"
+        + COMMAND_OUT    : String = "device/command"
+        + STATUS_IN      : String = "device/status"
+        + ROBOT_STATE    : String = "gob/robot/state"
+        + ROBOT_STATE_ACK: String = "gob/robot/state/ack"
+    }
+
+    ' ── n8n ──────────────────────────────────────────────────────
+    class N8NClient {
+        - webhook_url : String
+        - timeout     : int
+        - enabled     : bool
+        --
+        + send_action(action_json : ActionJSON) : N8NResult
+        - _validate_before_send(action_json : ActionJSON)
+        - _build_headers() : Dict
+    }
+
+    class N8NResult {
+        + action_id       : String
+        + status          : String
+        + execution_id    : String
+        + sent_at         : DateTime
+        + response_time_ms: int
+    }
+
+    ' ── Contact Manager ──────────────────────────────────────────
+    class ContactManager {
+        - contacts      : List<Contact>
+        - contacts_path : String
+        --
+        + resolve_contact(name : String) : Contact
+        + get_email(name : String) : String
+        + find_by_name(query : String) : List<Contact>
+        - _load_contacts() : List<Contact>
+        - _fuzzy_match(query : String, name : String) : float
+    }
+
+    class Contact {
+        + id    : String
+        + name  : String
+        + email : String
+        + phone : String
+    }
+
+    ' ── Device Manager ───────────────────────────────────────────
+    class DeviceManager {
+        - devices      : List<Device>
+        - devices_path : String
+        --
+        + resolve_device(name : String) : Device
+        + get_device_id(name : String) : String
+        + find_by_type(device_type : String) : List<Device>
+        + find_by_location(location : String) : List<Device>
+        - _load_devices() : List<Device>
+    }
+
+    class Device {
+        + id          : String
+        + name        : String
+        + device_type : String
+        + location    : String
+        + mqtt_topic  : String
+    }
+    note right of Device
+      device_type examples:
+      lamp, fan, tv, ac, door
+      location: salon, bedroom, kitchen
+    end note
+}
+
+' ── External Systems ──────────────────────────────────────────
+package "External Systems" {
+    class MQTTBroker <<external>> {
+        + Mosquitto broker
+    }
+    class N8NWorkflow <<external>> {
+        + Webhook endpoint
+        + Automation engine
+    }
+    class ESP32Device <<external>> {
+        + Subscribes device/command
+        + Subscribes device/audio
+        + Publishes device/status
+    }
+}
+
+package "Static Data Files" {
+    class "contacts.json" as CJSON <<file>> {
+        + [ { id, name, email, phone } ]
+    }
+    class "devices.json" as DJSON <<file>> {
+        + [ { id, name, device_type, location, mqtt_topic } ]
+    }
+}
+
+' ─── RELATIONSHIPS ───────────────────────────────────────────────
+MQTTClient  ..>  MQTTPublishResult : produces >
+MQTTClient  ..>  MQTTTopics        : uses >
+MQTTClient  ..>  MQTTBroker        : connects to >
+MQTTBroker  ..>  ESP32Device       : relays to >
+
+N8NClient   ..>  N8NResult         : produces >
+N8NClient   ..>  N8NWorkflow       : sends to >
+
+ContactManager "1" *-- "0..*" Contact : manages >
+ContactManager ..> CJSON             : reads from >
+
+DeviceManager "1" *-- "0..*" Device  : manages >
+DeviceManager ..> DJSON              : reads from >
+
+note right of MQTTClient
+  AUTO_PUBLISH_AUDIO_TO_MQTT: enabled by default.
+  Every TTS output is automatically published
+  to device/audio after synthesis.
+  Supports QoS 0/1/2.
+end note
+
+note right of N8NClient
+  Sends signed ActionJSON via HTTP POST
+  to n8n webhook.
+  Validates ActionJSON before sending.
+  Falls back to "mock" if not enabled.
+end note
+
+note bottom of ContactManager
+  Rejects fictional emails (@example.com).
+  Fuzzy name matching for partial names.
+  Raises clarification request if ambiguous.
+end note
+
+@enduml

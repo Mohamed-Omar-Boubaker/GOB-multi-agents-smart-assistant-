@@ -1,0 +1,23 @@
+{
+  "device_mapping": {
+    "light": {
+      "salon": "lamp_salon_002",
+      "cuisine": "lamp_kitchen_001",
+      "chambre": "lamp_bedroom_001",
+      "bureau": "lamp_office_001"
+    },
+    "shutter": {
+      "salon": "shutter_salon_001",
+      "cuisine": "shutter_kitchen_001",
+      "chambre": "shutter_bedroom_001"
+    },
+    "temperature": {
+      "salon": "thermostat_salon_001",
+      "chambre": "thermostat_bedroom_001"
+    }
+  },
+  "aliases": {
+    "living room": "salon",
+    "kitchen": "cuisine"
+  }
+}

@@ -1,0 +1,209 @@
+﻿{
+  "name": "Control IoT - Contrôle Domotique",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "control_iot",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "4aa4b49e-6d12-4b6f-b7e9-b08ca4698454",
+      "name": "Webhook - Receive IoT Action",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "webhookId": "control-iot-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "const received = $input.item.json;\nconst action = received.body ?? received;\nconst payload = action.payload ?? {};\n\nconst deviceId = payload.device_id ?? `${payload.device_type ?? 'device'}_${payload.location ?? 'unknown'}`;\nconst command = payload.action ?? 'unknown';\nconst language = (action.context?.language || action.language || 'fr').toLowerCase();\n\nreturn {\n  json: {\n    action_id: action.action_id ?? 'unknown',\n    user_id: action.user_id ?? 'unknown',\n    intent: action.intent ?? 'control_iot',\n    language,\n    device_id: deviceId,\n    device_type: payload.device_type ?? 'device',\n    location: payload.location ?? '',\n    command,\n    mqtt_topic: `gob/actions/${deviceId}/command`,\n    mqtt_payload: {\n      action_id: action.action_id ?? 'unknown',\n      device_id: deviceId,\n      device_type: payload.device_type ?? 'device',\n      command,\n      location: payload.location ?? '',\n      timestamp: Math.floor(Date.now() / 1000),\n      source: 'n8n_workflow'\n    }\n  }\n};"
+      },
+      "id": "e98d8a4f-5200-4a9c-931d-fb72a8856f51",
+      "name": "Extract Device Command",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "topic": "={{ $json.mqtt_topic }}",
+        "sendInputData": false,
+        "message": "={{ JSON.stringify($json.mqtt_payload) }}",
+        "options": { "qos": 1 }
+      },
+      "id": "d6b698ad-ac45-4638-8cd5-defd43f948b3",
+      "name": "Publish MQTT Command",
+      "type": "n8n-nodes-base.mqtt",
+      "typeVersion": 1,
+      "position": [440, 0],
+      "credentials": {
+        "mqtt": {
+          "id": "2HlIZ1xVzlUk9hgc",
+          "name": "MQTT account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "97afe8ec-785e-423f-8c00-d35dc869c372",
+      "name": "Wait Device Response",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = $input.item.json;\nconst isSuccess = j.command !== 'unknown' && j.device_id !== 'unknown';\nreturn {\n  json: {\n    ...j,\n    status: isSuccess ? 'success' : 'failed',\n    result: isSuccess ? {\n      device_id: j.device_id,\n      command: j.command,\n      location: j.location\n    } : null,\n    error: isSuccess ? null : 'iot_command_invalid'\n  }\n};"
+      },
+      "id": "iot-result-node-1",
+      "name": "Build IoT Result",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [860, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.status}}",
+              "operation": "equal",
+              "value2": "success"
+            }
+          ]
+        }
+      },
+      "id": "iot-if-node-1",
+      "name": "IF Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1060, 0]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = $input.item.json;\nconst onMap = { fr: 'allumee', en: 'turned on', ar: 'تم تشغيله' };\nconst offMap = { fr: 'eteinte', en: 'turned off', ar: 'تم إيقافه' };\nlet actionLabel = j.command;\nif (j.command === 'turn_on') actionLabel = onMap[j.language] || onMap.fr;\nif (j.command === 'turn_off') actionLabel = offMap[j.language] || offMap.fr;\nconst tpl = {\n  fr: `La ${j.device_type} de ${j.location || 'la maison'} est ${actionLabel}.`,\n  en: `The ${j.device_type} in ${j.location || 'home'} is ${actionLabel}.`,\n  ar: `تم تنفيذ امر ${j.device_type} في ${j.location || 'المنزل'}.`\n};\nreturn { json: { ...j, voice_text: tpl[j.language] || tpl.fr } };"
+      },
+      "id": "iot-success-voice-1",
+      "name": "Build Voice Success",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1260, -80]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = $input.item.json;\nconst tpl = {\n  fr: `La commande IoT n'a pas ete executee pour ${j.device_type} ${j.location || ''}.`,\n  en: `IoT command failed for ${j.device_type} ${j.location || ''}.`,\n  ar: `فشل تنفيذ امر ${j.device_type} ${j.location || ''}.`\n};\nreturn { json: { ...j, voice_text: tpl[j.language] || tpl.fr } };"
+      },
+      "id": "iot-fail-voice-1",
+      "name": "Build Voice Failure",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1260, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8005/tts",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { text: $json.voice_text, request_id: $execution.id, action_id: $json.action_id } }}",
+        "options": {}
+      },
+      "id": "iot-tts-1",
+      "name": "Generate TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1460, 0]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = $input.item.json;\nconst base = $item(0).$node['Build IoT Result'].json;\nconst audioUrl = j.audio_url || j.body?.audio_url;\n\nlet voiceText = '';\ntry {\n  voiceText = $item(0).$node['Build Voice Success'].json.voice_text || '';\n} catch (e) {}\nif (!voiceText) {\n  try {\n    voiceText = $item(0).$node['Build Voice Failure'].json.voice_text || '';\n  } catch (e) {}\n}\n\nreturn {\n  json: {\n    ...base,\n    audio_url: audioUrl,\n    mqtt_voice_topic: 'gob/audio/tts/request',\n    mqtt_voice_payload: {\n      request_id: $execution.id,\n      action_id: base.action_id,\n      user_id: base.user_id,\n      lang: base.language,\n      text: voiceText,\n      url: audioUrl,\n      ts: Math.floor(Date.now() / 1000)\n    }\n  }\n};"
+      },
+      "id": "iot-voice-payload-1",
+      "name": "Build Voice MQTT Payload",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1660, 0]
+    },
+    {
+      "parameters": {
+        "topic": "={{$json.mqtt_voice_topic}}",
+        "sendInputData": false,
+        "message": "={{ JSON.stringify($json.mqtt_voice_payload) }}",
+        "options": { "qos": 1 }
+      },
+      "id": "iot-pub-voice-1",
+      "name": "Publish Voice MQTT",
+      "type": "n8n-nodes-base.mqtt",
+      "typeVersion": 1,
+      "position": [1860, 0],
+      "credentials": {
+        "mqtt": {
+          "id": "2HlIZ1xVzlUk9hgc",
+          "name": "MQTT account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/callback/n8n",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { action_id: $json.action_id, status: $json.status, result: $json.result, error: $json.error, execution_time_ms: null } }}",
+        "options": { "timeout": 5000 }
+      },
+      "id": "iot-callback-1",
+      "name": "Callback Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2060, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ action_id: $json.action_id, status: $json.status, result: $json.result, error: $json.error, audio_url: $json.audio_url }) }}",
+        "options": {}
+      },
+      "id": "75ecb503-cc7e-40eb-a2cf-4e642dda2d20",
+      "name": "Response to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2260, 0]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Receive IoT Action": { "main": [[{ "node": "Extract Device Command", "type": "main", "index": 0 }]] },
+    "Extract Device Command": { "main": [[{ "node": "Publish MQTT Command", "type": "main", "index": 0 }]] },
+    "Publish MQTT Command": { "main": [[{ "node": "Wait Device Response", "type": "main", "index": 0 }]] },
+    "Wait Device Response": { "main": [[{ "node": "Build IoT Result", "type": "main", "index": 0 }]] },
+    "Build IoT Result": { "main": [[{ "node": "IF Success", "type": "main", "index": 0 }]] },
+    "IF Success": {
+      "main": [
+        [{ "node": "Build Voice Success", "type": "main", "index": 0 }],
+        [{ "node": "Build Voice Failure", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Voice Success": { "main": [[{ "node": "Generate TTS", "type": "main", "index": 0 }]] },
+    "Build Voice Failure": { "main": [[{ "node": "Generate TTS", "type": "main", "index": 0 }]] },
+    "Generate TTS": { "main": [[{ "node": "Build Voice MQTT Payload", "type": "main", "index": 0 }]] },
+    "Build Voice MQTT Payload": { "main": [[{ "node": "Publish Voice MQTT", "type": "main", "index": 0 }]] },
+    "Publish Voice MQTT": { "main": [[{ "node": "Callback Backend", "type": "main", "index": 0 }]] },
+    "Callback Backend": { "main": [[{ "node": "Response to Webhook", "type": "main", "index": 0 }]] }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "94e0978e0fa5f438c52ed3596bba774713a88da1977e909f23ec9cdf88b64238"
+  },
+  "id": "koRqpzqAv1xbMT2M1-cGS",
+  "tags": []
+}

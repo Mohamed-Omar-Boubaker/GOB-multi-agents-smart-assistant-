@@ -1,0 +1,60 @@
+{
+  "name": "Web Search - Recherche Web",
+  "description": "Workflow de recherche web via API",
+  "version": "1.0.0",
+  "nodes": [
+    {
+      "type": "n8n-nodes-base.webhook",
+      "name": "Webhook - Receive Search Action",
+      "parameters": {
+        "path": "/web_search",
+        "httpMethod": "POST"
+      },
+      "position": [250, 300],
+      "note": "Réception action web_search"
+    },
+    {
+      "type": "n8n-nodes-base.function",
+      "name": "Extract Search Query",
+      "parameters": {
+        "functionCode": "// TODO: Extraire query depuis payload\nreturn items;"
+      },
+      "position": [450, 300],
+      "note": "Extraction requête recherche"
+    },
+    {
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Call Search API",
+      "parameters": {
+        "url": "https://api.search.example.com/search",
+        "method": "GET"
+      },
+      "position": [650, 300],
+      "note": "Appel API recherche (Google, Bing, etc.)"
+    },
+    {
+      "type": "n8n-nodes-base.function",
+      "name": "Format Results",
+      "parameters": {
+        "functionCode": "// TODO: Formatter résultats recherche\nreturn items;"
+      },
+      "position": [850, 300],
+      "note": "Formatage résultats"
+    },
+    {
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Callback Backend",
+      "parameters": {
+        "url": "http://localhost:8000/callback/n8n",
+        "method": "POST"
+      },
+      "position": [1050, 300],
+      "note": "Retour résultats Backend Python"
+    }
+  ],
+  "connections": {},
+  "settings": {
+    "saveExecutionProgress": true
+  },
+  "note": "Workflow recherche web - Intent: web_search"
+}

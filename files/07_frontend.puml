@@ -1,0 +1,348 @@
+@startuml 07_Frontend
+skinparam backgroundColor #FFFFFF
+skinparam classAttributeIconSize 0
+skinparam classFontSize 9
+skinparam classFontColor #000000
+skinparam classHeaderBackgroundColor #FFFFFF
+skinparam classHeaderFontColor #000000
+skinparam classBorderColor #000000
+skinparam classBackgroundColor #FFFFFF
+skinparam arrowColor #000000
+skinparam arrowFontColor #000000
+skinparam arrowFontSize 8
+skinparam noteBorderColor #000000
+skinparam noteBackgroundColor #FFFFFF
+skinparam noteFontColor #000000
+skinparam noteFontSize 8
+skinparam packageBorderColor #000000
+skinparam packageBackgroundColor #FFFFFF
+skinparam packageFontColor #000000
+skinparam packageFontStyle bold
+skinparam shadowing false
+skinparam linetype ortho
+skinparam dpi 120
+
+title Diagram 7 — Frontend: State Management, Screens & Services (TypeScript / React / Capacitor)
+
+' ── SCREENS ───────────────────────────────────────────────────
+package "Screens" {
+    class WelcomeScreen {
+        --
+        + render() : JSX
+        + onStart() : void
+    }
+
+    class LoginScreen {
+        --
+        + render() : JSX
+        + onLogin(credentials : Dict) : void
+    }
+
+    class AgentScreen {
+        - store : AgentStore
+        - audioService : AudioService
+        --
+        + render() : JSX
+        + onMicPress() : void
+        + onMicRelease() : void
+        + onTextSubmit(text : String) : void
+        + onConfirm() : void
+        + onCancel() : void
+    }
+}
+
+' ── COMPONENTS ────────────────────────────────────────────────
+package "UI Components" {
+    class Avatar {
+        - state : AgentState
+        --
+        + render() : JSX
+    }
+
+    class CanvasEyes {
+        - eyesEngine : EyesEngine
+        --
+        + render() : JSX
+        + blink() : void
+        + lookAt(x : float, y : float) : void
+    }
+
+    class MicButton {
+        - isRecording : bool
+        --
+        + render() : JSX
+        + onPressStart() : void
+        + onPressEnd() : void
+    }
+
+    class Waveform {
+        - audioLevel : float
+        --
+        + render() : JSX
+        + updateLevel(level : float) : void
+    }
+
+    class ConversationHistory {
+        - messages : List<Message>
+        --
+        + render() : JSX
+        + scrollToBottom() : void
+    }
+
+    class MemoryPanel {
+        - facts : List<UserFact>
+        --
+        + render() : JSX
+        + onRefresh() : void
+    }
+
+    class EntityBadge {
+        - entity : Entity
+        --
+        + render() : JSX
+    }
+
+    class ActionPanel {
+        - actionState : String
+        --
+        + render() : JSX
+        + onConfirm() : void
+        + onCancel() : void
+    }
+
+    class SettingsPanel {
+        - settings : Dict
+        --
+        + render() : JSX
+        + onSave(settings : Dict) : void
+        + onWakeWordChange(word : String) : void
+        + onLanguageChange(lang : String) : void
+    }
+
+    class Toast {
+        - message : String
+        - type    : ToastType
+        --
+        + render() : JSX
+        + onDismiss() : void
+    }
+
+    class EyesEngine {
+        - config  : EyesConfig
+        - canvas  : HTMLCanvas
+        --
+        + initialize(canvas : HTMLCanvas)
+        + animate()
+        + setExpression(expression : String)
+    }
+
+    class EyesConfig {
+        + pupilSize    : float
+        + blinkRate    : float
+        + movementSpeed: float
+        + expressions  : Dict
+    }
+}
+
+' ── STATE MANAGEMENT ──────────────────────────────────────────
+package "State Management (Zustand)" {
+    class AgentStore <<singleton>> {
+        + state          : AgentState
+        + transcription  : String
+        + response       : String
+        + metadata       : ConversationMetadata
+        + isPlayingAudio : bool
+        + toasts         : List<ToastMessage>
+        + messages       : List<Message>
+        + wakeMode       : bool
+        + wakeWord       : String
+        --
+        + setState(state : AgentState)
+        + setTranscription(text : String)
+        + setResponse(text : String, metadata : ConversationMetadata)
+        + setPlayingAudio(playing : bool)
+        + showToast(message : String, type : ToastType)
+        + hideToast(id : String)
+        + addMessage(sender : String, text : String, metadata : ConversationMetadata)
+        + clearMessages()
+        + reset()
+        + enableWakeMode()
+        + disableWakeMode()
+        + setWakeWord(word : String)
+    }
+
+    enum AgentState {
+        idle
+        listening
+        thinking
+        speaking
+        confirmation
+        execution
+        success
+        error
+    }
+
+    class Message {
+        + id        : String
+        + sender    : String
+        + text      : String
+        + timestamp : DateTime
+        + emotion   : String
+        + entities  : List<Entity>
+    }
+
+    class ConversationMetadata {
+        + entities     : List<Entity>
+        + emotion      : String
+        + intent       : String
+        + summary      : String
+        + extracted_at : String
+    }
+
+    class Entity {
+        + type       : String
+        + name       : String
+        + confidence : float
+    }
+
+    class ToastMessage {
+        + id      : String
+        + message : String
+        + type    : ToastType
+    }
+
+    enum ToastType {
+        info
+        success
+        warning
+        error
+    }
+}
+
+' ── SERVICES ──────────────────────────────────────────────────
+package "Services" {
+    class ApiService <<singleton>> {
+        - api_url : String
+        --
+        + sendAudio(audioBlob : Blob) : BackendResponse
+        + sendText(text : String) : BackendResponse
+        + confirmAction(actionId : String, response : String) : BackendResponse
+        + getActionStatus(actionId : String) : Dict
+        + getMemory(userId : String) : Dict
+        + healthCheck() : bool
+        - blobToBase64(blob : Blob) : String
+        - getLanguageFromSettings() : String
+    }
+
+    class AudioService {
+        - mediaRecorder   : MediaRecorder
+        - audioChunks     : List<Blob>
+        - isRecording     : bool
+        --
+        + startRecording() : void
+        + stopRecording() : Blob
+        + playAudio(base64Audio : String) : void
+        + stopAudio() : void
+        + getAudioLevel() : float
+    }
+
+    class PermissionsService {
+        --
+        + requestMicrophonePermission() : bool
+        + checkMicrophonePermission() : bool
+        + requestAudioPermission() : bool
+    }
+
+    class WakeWordService {
+        - wakeWord   : String
+        - isActive   : bool
+        - model      : PicovoiceModel
+        --
+        + start(wakeWord : String) : void
+        + stop() : void
+        + onWakeWordDetected(callback : Callable) : void
+    }
+
+    class RobotStatePublisher {
+        - api_url    : String
+        - last_state : String
+        --
+        + publishFromAgentState(agentState : AgentState, options : Dict)
+        - _mapAgentStateToRobotState(agentState : AgentState) : String
+    }
+
+    class BackendResponse {
+        + type          : String
+        + response      : String
+        + message       : String
+        + transcription : String
+        + audio         : AudioPayload
+        + metadata      : ConversationMetadata
+        + status        : String
+    }
+
+    class AudioPayload {
+        + audio_data   : String
+        + audio_format : String
+    }
+}
+
+' ─── RELATIONSHIPS ───────────────────────────────────────────────
+AgentScreen  o--  AgentStore      : reads/writes state >
+AgentScreen  o--  ApiService      : sends requests >
+AgentScreen  o--  AudioService    : records/plays audio >
+AgentScreen *--   Avatar
+AgentScreen *--   MicButton
+AgentScreen *--   Waveform
+AgentScreen *--   ConversationHistory
+AgentScreen *--   ActionPanel
+AgentScreen *--   MemoryPanel
+AgentScreen *--   SettingsPanel
+
+Avatar      ..>  AgentState       : reacts to >
+CanvasEyes  *--  EyesEngine
+EyesEngine  o--  EyesConfig
+
+ConversationHistory *-- "0..*" Message
+ConversationHistory *-- "0..*" EntityBadge
+Message     *-- "0..*" Entity
+Message     ..> ConversationMetadata
+
+AgentStore  ..>  AgentState
+AgentStore  *-- "0..*" Message
+AgentStore  *-- "0..*" ToastMessage
+AgentStore  ..>  RobotStatePublisher : notifies on state change >
+ToastMessage ..> ToastType
+
+BackendResponse *-- "0..1" ConversationMetadata
+BackendResponse *-- "0..1" AudioPayload
+ConversationMetadata *-- "0..*" Entity
+
+ApiService      ..>  BackendResponse : receives >
+WakeWordService ..>  AgentStore      : triggers setState(listening) >
+
+WelcomeScreen ..> AgentScreen : navigates to >
+LoginScreen   ..> AgentScreen : navigates to >
+
+note right of AgentStore
+  Central state machine.
+  Every AgentState change also
+  triggers RobotStatePublisher
+  to sync with backend via HTTP.
+end note
+
+note right of WakeWordService
+  Uses Picovoice SDK for
+  offline wake word detection.
+  Triggers recording when
+  wake word is detected.
+end note
+
+note bottom of ApiService
+  Reads user_id, language from
+  localStorage settings.
+  Converts audio Blob to base64
+  before sending to backend.
+end note
+
+@enduml

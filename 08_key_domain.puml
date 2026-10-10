@@ -1,0 +1,172 @@
+@startuml 08_Key_Domain
+skinparam backgroundColor #FFFFFF
+skinparam classAttributeIconSize 0
+skinparam classFontSize 10
+skinparam classFontColor #000000
+skinparam classHeaderBackgroundColor #FFFFFF
+skinparam classHeaderFontColor #000000
+skinparam classBorderColor #000000
+skinparam classBackgroundColor #FFFFFF
+skinparam arrowColor #000000
+skinparam arrowFontColor #000000
+skinparam arrowFontSize 9
+skinparam noteBorderColor #000000
+skinparam noteBackgroundColor #FFFFFF
+skinparam noteFontColor #000000
+skinparam noteFontSize 9
+skinparam packageBorderColor #000000
+skinparam packageBackgroundColor #FFFFFF
+skinparam packageFontColor #000000
+skinparam packageFontStyle bold
+skinparam shadowing false
+skinparam linetype ortho
+skinparam dpi 120
+skinparam nodesep 50
+skinparam ranksep 60
+
+title Diagram 8 — Key Domain Model (Academic Presentation View)
+
+' ── CORE DOMAIN ENTITIES ──────────────────────────────────────
+
+class User {
+    + user_id   : String
+    + language  : String
+    + name      : String
+    --
+    + sendCommand(text : String) : Response
+    + confirmAction(action_id : String, response : String) : Response
+}
+
+class UserFact {
+    + fact_type  : String
+    + fact_key   : String
+    + fact_value : String
+    + confidence : float
+}
+note right of UserFact
+  Persisted user knowledge:
+  name, preferences, device usage
+end note
+
+class ConversationTurn {
+    + role      : String
+    + message   : String
+    + timestamp : DateTime
+}
+
+class Action {
+    + action_id  : String
+    + intent     : String
+    + payload    : Dict
+    + state      : ActionState
+    + language   : String
+    + confirmed  : bool
+    + signature  : String
+    --
+    + confirm()
+    + cancel()
+    + execute()
+}
+
+enum ActionState {
+    DRAFT
+    PENDING_CONFIRMATION
+    CONFIRMED
+    EXECUTING
+    COMPLETED
+    FAILED
+    CANCELED
+}
+
+class Entity {
+    + type       : String
+    + name       : String
+    + confidence : float
+}
+
+class ConversationSession {
+    + request_id   : String
+    + user_id      : String
+    + input_text   : String
+    + response     : String
+    + classification : String
+    + language     : String
+    + timestamp    : DateTime
+}
+
+class Device {
+    + device_id   : String
+    + name        : String
+    + device_type : String
+    + location    : String
+    + mqtt_topic  : String
+}
+
+class Contact {
+    + name  : String
+    + email : String
+    + phone : String
+    + alias : String
+}
+
+class AudioTranscription {
+    + transcription      : String
+    + confidence         : float
+    + language           : String
+    + processing_time_ms : int
+}
+
+class AgentResponse {
+    + type         : String
+    + response     : String
+    + audio_data   : String
+    + status       : String
+    + metadata     : Dict
+}
+
+' ── RELATIONSHIPS ─────────────────────────────────────────────
+User "1" -- "0..*" UserFact         : has >
+User "1" -- "0..*" ConversationTurn : history >
+User "1" -- "0..*" Action           : requests >
+User "1" -- "0..1" Action           : <<pending>>\nawaits confirmation on >
+
+Action ..> ActionState              : transitions through >
+Action "0..1" -- "0..1" Device      : targets >
+Action "0..1" -- "0..1" Contact     : addresses >
+
+ConversationSession "1" *-- "0..*" Entity : extracts >
+ConversationSession ..> AudioTranscription : may include >
+ConversationSession ..> AgentResponse      : produces >
+
+User "1" -- "0..*" ConversationSession : initiates >
+
+note bottom of Action
+  Business Rule 1:
+  Only 1 action per user can be
+  in PENDING_CONFIRMATION at a time.
+
+  Business Rule 2:
+  Confirmed action is HMAC-signed
+  by SecurityManager before execution.
+
+  Business Rule 3:
+  In DEMO_MODE, n8n is bypassed and
+  execution is simulated locally.
+end note
+
+note bottom of User
+  Multilingual: FR / EN / AR.
+  User identity persisted via user_id.
+  Name extracted from conversation
+  and stored as UserFact.
+end note
+
+note right of ConversationSession
+  Each session can be:
+  - "conversation" (LLM chat)
+  - "action" (IoT control, email, etc.)
+  Classified by IntentClassifier
+  with 3-level hybrid strategy.
+end note
+
+@enduml

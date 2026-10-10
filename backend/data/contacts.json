@@ -1,0 +1,47 @@
+{
+  "contacts": {
+    "amine": {
+      "name": "Amine Ben Salem",
+      "email": "amine@ensi.tn",
+      "phone": "+216 20 123 456",
+      "tags": [
+        "collègue",
+        "projet"
+      ]
+    },
+    "jean": {
+      "name": "Jean Martin",
+      "email": "jean.martin@gmail.com",
+      "phone": "+33 6 12 34 56 78",
+      "tags": [
+        "ami",
+        "france"
+      ]
+    },
+    "montassar": {
+      "name": "Montassar Nawara",
+      "email": "montassar.nawara@ensi-uma.tn",
+      "phone": "+216 XX XXX XXX",
+      "tags": [
+        "me",
+        "dev"
+      ]
+    },
+    "professeur": {
+      "name": "Professeur Ahmed",
+      "email": "ahmed@ensi-uma.tn",
+      "phone": "+216 71 XXX XXX",
+      "tags": [
+        "enseignant",
+        "pcd"
+      ]
+    }
+  },
+  "aliases": {
+    "mon pote": "montassar",
+    "amin": "amine",
+    "prof": "professeur",
+    "ahmed": "professeur",
+    "me": "montassar"
+  }
+}

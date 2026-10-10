@@ -1,0 +1,707 @@
+@startuml PCD_AI_Embedded_Agent_ClassDiagram
+skinparam classAttributeIconSize 0
+skinparam classFontSize 12
+skinparam classHeaderBackgroundColor #1a1a2e
+skinparam classHeaderFontColor #e0e0ff
+skinparam classBorderColor #4a4a8a
+skinparam classBackgroundColor #16213e
+skinparam classFontColor #e0e0ff
+skinparam arrowColor #8888cc
+skinparam noteBorderColor #4a4a8a
+skinparam noteBackgroundColor #0f3460
+skinparam noteFontColor #e0e0ff
+skinparam packageBorderColor #6a6aaa
+skinparam packageBackgroundColor #0d1b2a
+skinparam packageFontColor #c0c0ff
+skinparam linetype ortho
+
+
+
+' ================================================================
+' PACKAGE: Agent Core (Orchestration)
+' ================================================================
+package "Agent Core" {
+
+    class AgentCore {
+        - logger          : Logger
+        - state_manager   : StateManager
+        - memory_extractor: MemoryExtractor
+        - classifier_threshold : float
+        - max_retries     : int
+        --
+        + process(input_data : Dict) : Dict
+        + confirm_action(action_id : String, user_response : String) : Dict
+        + handle_execution_result(result_data : Dict) : Dict
+        + get_action_status(action_id : String) : Dict
+        # _classify_intent(text : String, language : String) : Dict
+        # _handle_conversation(text : String, user_id : String, language : String, request_id : String) : Dict
+        # _handle_action(text : String, user_id : String, language : String, classification : Dict, request_id : String) : Dict
+        # _handle_pending_confirmation(text : String, user_id : String, language : String, pending_action : Dict, request_id : String) : Dict
+        # _execute_confirmed_action(action_id : String, action_json : Dict) : Dict
+        # _simulate_action_execution(action_id : String, action_data : Dict) : Dict
+        # _validate_action_entities(llm_analysis : Dict, language : String) : Dict
+        # _extract_explicit_name_statement(text : String) : String
+        # _save_user_name_fact(user_id : String, name : String) : bool
+        # _get_saved_user_name(user_id : String) : String
+    }
+    note bottom of AgentCore
+      **Central Orchestrator**
+      Routes text/audio commands through
+      the full processing pipeline:
+      STT → Classify → LLM → Build → Confirm → Execute
+    end note
+
+    class StateManager {
+        - actions        : Dict<String, ActionRecord>
+        - state_history  : Dict<String, List<StateHistoryEntry>>
+        - valid_transitions : Dict<String, List<String>>
+        --
+        + create_action(action_id : String, action_json : Dict, initial_state : String) : ActionRecord
+        + get_action(action_id : String) : ActionRecord
+        + update_state(action_id : String, new_state : String, reason : String) : ActionRecord
+        + get_pending_action(user_id : String) : ActionRecord
+        + get_actions_by_state(state : String) : List<ActionRecord>
+        + get_user_actions(user_id : String) : List<ActionRecord>
+        + get_state_history(action_id : String) : List<StateHistoryEntry>
+        + get_statistics() : Dict
+        + delete_action(action_id : String) : bool
+        - _is_valid_transition(old_state : String, new_state : String) : bool
+    }
+
+    enum ActionState {
+        IDLE
+        DRAFT
+        PENDING_CONFIRMATION
+        CONFIRMED
+        EXECUTING
+        COMPLETED
+        FAILED
+        CANCELED
+    }
+    note right of ActionState
+      Valid transitions:
+      DRAFT → PENDING_CONFIRMATION
+      PENDING_CONFIRMATION → CONFIRMED | CANCELED | DRAFT
+      CONFIRMED → EXECUTING | CANCELED
+      EXECUTING → COMPLETED | FAILED
+      FAILED → DRAFT  (retry)
+    end note
+
+    class ActionRecord {
+        + action_id      : String
+        + current_state  : ActionState
+        + action_json    : ActionJSON
+        + state_history  : List<StateHistoryEntry>
+        + created_at     : DateTime
+        + updated_at     : DateTime
+    }
+
+    class StateHistoryEntry {
+        + state          : ActionState
+        + previous_state : ActionState
+        + timestamp      : DateTime
+        + reason         : String
+    }
+
+    class Logger {
+        - log_file   : String
+        - max_bytes  : int
+        - backup_count : int
+        --
+        + info(message : String, extra : Dict)
+        + warning(message : String, extra : Dict)
+        + error(message : String, extra : Dict)
+        + log_conversation(user_id : String, input_text : String, response_text : String, request_id : String)
+        + log_action_created(action_id : String, action_json : Dict, user_id : String)
+        + log_action_state_change(action_id : String, old_state : String, new_state : String, reason : String)
+        + log_action_executed(action_id : String, success : bool, result : Dict)
+        + log_security_event(event : String, user_id : String, action_id : String, details : Dict)
+    }
+
+    class SecurityManager {
+        - secret_key : bytes
+        - algorithm  : String
+        --
+        + sign_action(action_json : Dict) : Dict
+        + verify_signature(action_json : Dict, provided_signature : String) : bool
+        + create_jwt_token(user_id : String, additional_claims : Dict, expiration_hours : int) : String
+        + verify_jwt_token(token : String) : Dict
+        + check_permission(user_id : String, action_type : String) : bool
+        + hash_password(password : String) : String
+        + verify_password(password : String, password_hash : String) : bool
+    }
+    note right of SecurityManager
+      Uses HMAC-SHA256 for action signing.
+      JWT tokens planned for user auth.
+      Timing-attack-safe comparisons.
+    end note
+}
+
+' ================================================================
+' PACKAGE: AI Engines
+' ================================================================
+package "AI Engines" {
+
+    class LLMClient {
+        - api_key     : String
+        - model       : String
+        - temperature : float
+        - timeout     : int
+        - url         : String
+        - conversations : Dict<String, List<Message>>
+        - max_conversation_history : int
+        --
+        + generate_conversation_response(user_input : String, user_id : String, language : String, memory_context : String) : Dict
+        + analyze_intent(user_input : String, language : String) : Dict
+        + clear_history(user_id : String)
+        - _build_system_prompt(memory_context : String) : String
+        - _filter_memory_context_for_input(memory_context : String, user_input : String) : String
+        - _should_reset_conversation_history(user_id : String, user_input : String) : bool
+        - _tokenize_for_relevance(text : String) : Set<String>
+    }
+    note bottom of LLMClient
+      Backed by OpenRouter API (Mistral-7B).
+      Manages per-user conversation history.
+      Injects memory context into system prompt.
+    end note
+
+    class STTEngine {
+        - model_name   : String
+        - device       : String
+        - compute_type : String
+        - model        : WhisperModel
+        --
+        + transcribe(audio_data : String, audio_format : String, language : String, request_id : String) : TranscriptionResult
+    }
+    note right of STTEngine
+      Uses faster-whisper (tiny/small model).
+      Input: base64-encoded audio.
+      Output: text + confidence score.
+    end note
+
+    class TTSEngine {
+        - host         : String
+        - port         : int
+        - sample_rate  : int
+        - channels     : int
+        - sample_width : int
+        --
+        + synthesize(text : String, language : String) : AudioResult
+        - _clean_text_for_tts(text : String) : String
+    }
+    note right of TTSEngine
+      Connects to local Piper server
+      via Wyoming protocol.
+      Returns base64-encoded WAV audio.
+    end note
+
+    class TranscriptionResult {
+        + transcription : String
+        + language      : String
+        + confidence    : float
+        + processing_time_ms : int
+        + model_used    : String
+        + alternatives  : List<String>
+        + timestamp     : DateTime
+    }
+
+    class AudioResult {
+        + audio_data   : String
+        + audio_format : String
+        + duration_ms  : int
+    }
+}
+
+' ================================================================
+' PACKAGE: Classification & Actions
+' ================================================================
+package "Classification & Actions" {
+
+    class IntentClassifier {
+        - method                  : String
+        - threshold               : float
+        - conversation_keywords   : List<String>
+        - action_keywords         : List<String>
+        - action_verbs            : List<String>
+        - conversation_patterns   : List<String>
+        --
+        + classify(text : String, request_id : String) : ClassificationResult
+        - _classify_by_rules(text : String) : ClassificationResult
+        - _classify_by_llm(text : String) : ClassificationResult
+    }
+    note right of IntentClassifier
+      3-level hybrid classification:
+      1. Keyword rules (fast, multilingual)
+      2. Verb/pattern matching
+      3. LLM fallback (if confidence < threshold)
+    end note
+
+    class ClassificationResult {
+        + classification : String
+        + confidence     : float
+        + method         : String
+        + intent         : String
+        + reasoning      : Dict
+        + timestamp      : DateTime
+    }
+
+    class ActionBuilder {
+        - device_manager : DeviceManager
+        --
+        + build_action(llm_analysis : Dict, user_id : String, original_text : String, language : String) : ActionJSON
+        - _build_payload(intent : String, entities : Dict) : Dict
+        - _build_iot_payload(entities : Dict) : IoTPayload
+        - _build_email_payload(entities : Dict) : EmailPayload
+        - _build_reminder_payload(entities : Dict) : ReminderPayload
+        - _build_search_payload(entities : Dict) : SearchPayload
+    }
+
+    class ConfirmationHandler {
+        - confirm_keywords : List<String>
+        - cancel_keywords  : List<String>
+        - modify_keywords  : List<String>
+        --
+        + generate_confirmation(action_json : ActionJSON) : String
+        + parse_response(input_data : Dict) : ConfirmationParseResult
+        - _contains_keyword(response_text : String, keywords : List<String>) : bool
+    }
+
+    class ActionJSON {
+        + action_id    : String
+        + user_id      : String
+        + request_id   : String
+        + intent       : String
+        + confirmed    : bool
+        + state        : ActionState
+        + payload      : Dict
+        + context      : ActionContext
+        + security     : ActionSecurity
+        + timestamps   : ActionTimestamps
+        + metadata     : ActionMetadata
+    }
+    note right of ActionJSON
+      Supported intents:
+      - control_iot
+      - send_email
+      - set_reminder
+      - web_search
+      - open_application
+    end note
+
+    class ActionContext {
+        + original_command : String
+        + language         : String
+        + source           : String
+        + confidence       : float
+    }
+
+    class ActionSecurity {
+        + user_token           : String
+        + signature            : String
+        + signature_algorithm  : String
+    }
+
+    class ActionTimestamps {
+        + created_at   : DateTime
+        + updated_at   : DateTime
+        + confirmed_at : DateTime
+        + executed_at  : DateTime
+    }
+
+    class ActionMetadata {
+        + priority        : String
+        + timeout_seconds : int
+        + retry_count     : int
+        + max_retries     : int
+    }
+}
+
+' ================================================================
+' PACKAGE: Memory System
+' ================================================================
+package "Memory System" {
+
+    class MemoryService {
+        - db_path : String
+        --
+        + add_fact(user_id : String, fact_type : String, fact_key : String, fact_value : String, confidence : float) : bool
+        + get_fact(user_id : String, fact_type : String, fact_key : String) : String
+        + get_facts(user_id : String, fact_type : String) : List<UserFact>
+        + delete_fact(user_id : String, fact_type : String, fact_key : String) : bool
+        + add_conversation_turn(user_id : String, role : String, message : String) : bool
+        + get_recent_conversations(user_id : String, limit : int) : List<ConversationTurn>
+        + build_memory_context(user_id : String, max_facts : int) : String
+        + clear_user_memory(user_id : String) : bool
+        - _init_database()
+    }
+    note bottom of MemoryService
+      SQLite embedded storage.
+      Tables: user_facts, conversations.
+      Persists across restarts.
+      Zero external infrastructure.
+    end note
+
+    class UserFact {
+        + id         : int
+        + user_id    : String
+        + fact_type  : String
+        + fact_key   : String
+        + fact_value : String
+        + confidence : float
+        + created_at : DateTime
+        + updated_at : DateTime
+    }
+
+    class ConversationTurn {
+        + id        : int
+        + user_id   : String
+        + role      : String
+        + message   : String
+        + timestamp : DateTime
+        + metadata  : Dict
+    }
+
+    class MemoryExtractor {
+        - enable_cache     : bool
+        - extraction_cache : Dict<String, ExtractionResult>
+        - extraction_prompt : String
+        --
+        + extract_from_conversation(user_message : String, user_id : String, assistant_response : String, store_results : bool) : ExtractionResult
+        - _store_entities(user_id : String, entities : List<Entity>)
+        - _build_extraction_prompt(context : String) : String
+    }
+    note right of MemoryExtractor
+      Uses LLM to extract:
+      - Named entities (food, device, person, location)
+      - User emotion
+      - Conversation intent
+      Optional cache to reduce API calls.
+    end note
+
+    class ExtractionResult {
+        + entities     : List<Entity>
+        + emotion      : String
+        + intent       : String
+        + summary      : String
+        + extracted_at : DateTime
+    }
+
+    class Entity {
+        + type       : String
+        + name       : String
+        + confidence : float
+    }
+}
+
+' ================================================================
+' PACKAGE: Integrations
+' ================================================================
+package "Integrations" {
+
+    class MQTTClient {
+        - broker           : String
+        - port             : int
+        - username         : String
+        - password         : String
+        - enabled          : bool
+        - connected        : bool
+        --
+        + connect() : bool
+        + disconnect()
+        + publish(topic : String, message : Dict, qos : int) : Dict
+        + publish_audio(audio_data : String, user_id : String) : Dict
+        + subscribe(topic : String, callback : Callable) : Dict
+        + is_connected() : bool
+        - _initialize_client()
+        - _on_connect(client, userdata, flags, rc)
+        - _on_message(client, userdata, msg)
+    }
+    note right of MQTTClient
+      Communicates with ESP32/IoT devices.
+      Topics:
+      - device/audio (TTS audio out)
+      - device/command (IoT commands)
+      - device/status (device feedback)
+      - gob/robot/state (robot state sync)
+    end note
+
+    class N8NClient {
+        - webhook_url : String
+        - timeout     : int
+        - enabled     : bool
+        --
+        + send_action(action_json : ActionJSON) : Dict
+        - _validate_before_send(action_json : ActionJSON)
+    }
+    note right of N8NClient
+      Sends confirmed ActionJSON to n8n
+      workflow engine for execution.
+      Validates signature before sending.
+    end note
+
+    class ContactManager {
+        - contacts : List<Contact>
+        --
+        + resolve_contact(name : String) : Contact
+        + get_email(name : String) : String
+        + find_by_name(query : String) : List<Contact>
+    }
+
+    class DeviceManager {
+        - devices : List<Device>
+        --
+        + resolve_device(name : String) : Device
+        + get_device_id(name : String) : String
+        + find_by_type(device_type : String) : List<Device>
+    }
+
+    class Contact {
+        + id    : String
+        + name  : String
+        + email : String
+        + phone : String
+    }
+
+    class Device {
+        + id          : String
+        + name        : String
+        + device_type : String
+        + location    : String
+        + mqtt_topic  : String
+    }
+}
+
+' ================================================================
+' PACKAGE: Configuration & Utils
+' ================================================================
+package "Config & Utilities" {
+
+    class Config <<singleton>> {
+        + HOST                         : String
+        + PORT                         : int
+        + DEFAULT_LANGUAGE             : String
+        + FORCE_LLM_RESPONSE_LANGUAGE  : String
+        + WHISPER_MODEL                : String
+        + TTS_SAMPLE_RATE              : int
+        + N8N_WEBHOOK_URL              : String
+        + MQTT_BROKER                  : String
+        + MQTT_PORT                    : int
+        + SECRET_KEY                   : String
+        + CLASSIFIER_THRESHOLD         : float
+        + CLARIFICATION_CONFIDENCE_MIN : float
+        + CLARIFICATION_CONFIDENCE_MAX : float
+        + DEMO_MODE                    : bool
+        + ENABLE_N8N_INTEGRATION       : bool
+        + ENABLE_MQTT_INTEGRATION      : bool
+        + AUTO_PUBLISH_AUDIO_TO_MQTT   : bool
+        --
+        + {static} validate_config() : bool
+    }
+
+    class JSONValidator <<utility>> {
+        + {static} validate_action_json_complete(action_json : Dict) : bool
+        + {static} validate_required_fields(data : Dict, required : List<String>) : bool
+    }
+
+    class ValidationError {
+        + message : String
+        + code    : String
+        + details : Dict
+        --
+        + ValidationError(message : String, code : String, details : Dict)
+    }
+}
+
+' ================================================================
+' PACKAGE: Frontend Domain (TypeScript)
+' ================================================================
+package "Frontend (Agent UI)" {
+
+    class AgentStore <<singleton>> {
+        + state          : AgentState
+        + transcription  : String
+        + response       : String
+        + metadata       : ConversationMetadata
+        + isPlayingAudio : bool
+        + toasts         : List<ToastMessage>
+        + messages       : List<Message>
+        + wakeMode       : bool
+        + wakeWord       : String
+        --
+        + setState(state : AgentState)
+        + setTranscription(text : String)
+        + setResponse(text : String, metadata : ConversationMetadata)
+        + setPlayingAudio(playing : bool)
+        + showToast(message : String, type : ToastType)
+        + hideToast(id : String)
+        + addMessage(sender : String, text : String, metadata : ConversationMetadata)
+        + clearMessages()
+        + reset()
+        + enableWakeMode()
+        + disableWakeMode()
+        + setWakeWord(word : String)
+    }
+    note right of AgentStore
+      Zustand state machine.
+      Publishes robot state changes
+      to backend via MQTT on each
+      agent state transition.
+    end note
+
+    enum AgentState {
+        idle
+        listening
+        thinking
+        speaking
+        confirmation
+        execution
+        success
+        error
+    }
+
+    class Message {
+        + id        : String
+        + sender    : String
+        + text      : String
+        + timestamp : DateTime
+        + emotion   : String
+        + entities  : List<Entity>
+    }
+
+    class ConversationMetadata {
+        + entities   : List<Entity>
+        + emotion    : String
+        + intent     : String
+        + summary    : String
+        + extracted_at : String
+    }
+
+    class BackendResponse {
+        + type          : String
+        + response      : String
+        + message       : String
+        + transcription : String
+        + audio         : AudioPayload
+        + metadata      : ConversationMetadata
+        + status        : String
+    }
+
+    class AudioPayload {
+        + audio_data   : String
+        + audio_format : String
+    }
+
+    class ApiService <<singleton>> {
+        --
+        + sendAudio(audioBlob : Blob) : BackendResponse
+        + sendText(text : String) : BackendResponse
+        + confirmAction(actionId : String, response : String) : BackendResponse
+        + getActionStatus(actionId : String) : Dict
+        + getMemory(userId : String) : Dict
+        + healthCheck() : bool
+    }
+    note bottom of ApiService
+      Communicates with Python backend.
+      Handles base64 audio encoding.
+      Reads language preference from
+      local settings storage.
+    end note
+
+    class RobotStatePublisher {
+        - api_url       : String
+        - last_state    : String
+        --
+        + publishFromAgentState(agentState : AgentState, options : Dict)
+        - _mapAgentStateToRobotState(agentState : AgentState) : String
+    }
+}
+
+' ================================================================
+' RELATIONSHIPS
+' ================================================================
+
+' --- AgentCore dependencies ---
+AgentCore *-- StateManager          : manages >
+AgentCore *-- Logger                : logs via >
+AgentCore *-- SecurityManager       : secures with >
+AgentCore o-- LLMClient             : uses >
+AgentCore o-- STTEngine             : transcribes with >
+AgentCore o-- TTSEngine             : synthesizes with >
+AgentCore o-- IntentClassifier      : classifies via >
+AgentCore o-- ActionBuilder         : builds actions via >
+AgentCore o-- ConfirmationHandler   : confirms via >
+AgentCore o-- N8NClient             : dispatches to >
+AgentCore o-- MQTTClient            : publishes audio via >
+AgentCore o-- MemoryService         : stores memory in >
+AgentCore o-- MemoryExtractor       : extracts entities via >
+
+' --- StateManager holds ActionRecords ---
+StateManager "1" *-- "0..*" ActionRecord    : stores >
+ActionRecord "1" *-- "1..*" StateHistoryEntry : has history >
+ActionRecord "1" *-- "1" ActionJSON         : wraps >
+ActionRecord ..> ActionState                : uses >
+
+' --- ActionJSON composition ---
+ActionJSON *-- ActionContext    : has >
+ActionJSON *-- ActionSecurity   : secured by >
+ActionJSON *-- ActionTimestamps : timestamped by >
+ActionJSON *-- ActionMetadata   : described by >
+
+' --- AI Engines ---
+STTEngine ..> TranscriptionResult : produces >
+TTSEngine ..> AudioResult         : produces >
+LLMClient ..> IntentClassifier    : can fallback to
+
+' --- ActionBuilder dependencies ---
+ActionBuilder ..> ActionJSON     : creates >
+ActionBuilder ..> DeviceManager  : resolves devices via >
+ActionBuilder ..> ContactManager : resolves contacts via >
+ActionBuilder ..> JSONValidator  : validates with >
+ActionBuilder ..> ValidationError : throws >
+
+' --- ConfirmationHandler ---
+ConfirmationHandler ..> ActionJSON : reads >
+
+' --- IntentClassifier ---
+IntentClassifier ..> ClassificationResult : produces >
+IntentClassifier o-- LLMClient : optional fallback >
+
+' --- Memory ---
+MemoryService "1" *-- "0..*" UserFact         : persists >
+MemoryService "1" *-- "0..*" ConversationTurn : records >
+MemoryExtractor o-- LLMClient   : uses for analysis >
+MemoryExtractor o-- MemoryService : stores into >
+MemoryExtractor ..> ExtractionResult : produces >
+ExtractionResult "1" *-- "0..*" Entity : contains >
+
+' --- Integrations ---
+ContactManager "1" *-- "0..*" Contact : manages >
+DeviceManager  "1" *-- "0..*" Device  : manages >
+N8NClient  ..> ActionJSON   : sends >
+N8NClient  ..> JSONValidator : validates with >
+MQTTClient ..> Device       : commands >
+
+' --- Config used everywhere ---
+Config <.. AgentCore         : configured by
+Config <.. LLMClient         : configured by
+Config <.. STTEngine         : configured by
+Config <.. TTSEngine         : configured by
+Config <.. IntentClassifier  : configured by
+Config <.. MQTTClient        : configured by
+Config <.. N8NClient         : configured by
+
+' --- Frontend relationships ---
+AgentStore "1" -- "1" ApiService            : calls >
+AgentStore "1" -- "1" RobotStatePublisher   : notifies >
+AgentStore "1" *-- "0..*" Message           : holds >
+AgentStore ..> AgentState                   : uses >
+Message "1" *-- "0..*" Entity               : has >
+Message ..> ConversationMetadata            : annotated by >
+BackendResponse "1" *-- "0..1" ConversationMetadata : carries >
+BackendResponse "1" *-- "0..1" AudioPayload : carries >
+ConversationMetadata "1" *-- "0..*" Entity  : contains >
+
+' --- Backend <-> Frontend interface ---
+ApiService ..> BackendResponse : receives >
+
+@enduml

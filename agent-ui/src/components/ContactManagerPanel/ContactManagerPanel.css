@@ -1,0 +1,202 @@
+.contact-manager-trigger {
+  position: fixed;
+  width: 50px;
+  height: 50px;
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: grab;
+  z-index: 1250;
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.contact-manager-trigger:hover {
+  transform: scale(1.06);
+  box-shadow: 0 6px 16px rgba(15, 118, 110, 0.6);
+}
+
+.contact-manager-trigger:active {
+  transform: scale(0.95);
+  cursor: grabbing;
+}
+
+.contact-manager-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 20, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.2s ease;
+}
+
+.contact-manager-panel {
+  width: 620px;
+  max-width: 92vw;
+  max-height: 85vh;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.contact-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 20px;
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+  color: white;
+}
+
+.contact-manager-title {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.contact-manager-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.contact-manager-content {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.contact-manager-section h3 {
+  font-size: 16px;
+  margin-bottom: 10px;
+  color: #0f3a39;
+}
+
+.contact-manager-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.contact-manager-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f1fbf9;
+  border: 1px solid #d6f0ed;
+}
+
+.contact-manager-row-title {
+  font-weight: 600;
+  color: #0f3a39;
+}
+
+.contact-manager-row-sub {
+  font-size: 13px;
+  color: #3f6b68;
+}
+
+.contact-manager-row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.contact-manager-row-actions button {
+  border: none;
+  background: #0f766e;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.contact-manager-row-actions button:last-child {
+  background: #b42318;
+}
+
+.contact-manager-form {
+  display: grid;
+  gap: 10px;
+}
+
+.contact-manager-form input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #cfe7e4;
+  font-size: 14px;
+}
+
+.contact-manager-form-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.contact-manager-form-actions button {
+  border: none;
+  background: #0f766e;
+  color: white;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.contact-manager-form-actions .secondary {
+  background: #4c7d7a;
+}
+
+.contact-manager-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #d6f0ed;
+  background: #f3fdfb;
+}
+
+.contact-manager-footer button {
+  border: none;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  background: #0f766e;
+  color: white;
+}
+
+.contact-manager-footer .secondary {
+  background: #4c7d7a;
+}
+
+.contact-manager-error {
+  background: #ffe5e5;
+  border: 1px solid #ffb3b3;
+  color: #b42318;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.contact-manager-loading,
+.contact-manager-empty {
+  color: #4c7d7a;
+  font-size: 13px;
+}

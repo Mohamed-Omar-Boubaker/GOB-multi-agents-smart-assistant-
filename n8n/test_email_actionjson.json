@@ -1,0 +1,48 @@
+{
+  "action_id": "act_test_simple_001",
+  "intent": "send_email",
+  "state": "CONFIRMED",
+  "confirmed": true,
+  "priority": "normal",
+  "payload": {
+    "recipient": "Test User",
+    "recipient_email": "REMPLACER_PAR_VOTRE_EMAIL@gmail.com",
+    "cc": [],
+    "bcc": [],
+    "subject": "Test Email depuis n8n Workflow",
+    "body": "Bonjour,\n\nCeci est un email de test envoyé depuis le workflow n8n wf_send_email.\n\nSi vous recevez ce message, cela signifie que :\n✅ L'extraction du payload ActionJSON fonctionne\n✅ La validation de l'email est correcte\n✅ La connexion Gmail SMTP est établie\n✅ L'envoi d'email est opérationnel\n\nCordialement,\nAgent PCD",
+    "body_format": "plain",
+    "attachments": [],
+    "priority": "normal",
+    "reply_to": null,
+    "send_at": null
+  },
+  "context": {
+    "user_id": "user_test",
+    "language": "fr",
+    "channel": "test",
+    "session_id": "session_test_001",
+    "location": "development",
+    "time_of_day": "morning"
+  },
+  "security": {
+    "auth_level": 1,
+    "signature": "test_signature",
+    "signed_at": "2026-01-20T10:00:00Z",
+    "requires_confirmation": false,
+    "permissions_required": ["email.send"]
+  },
+  "metadata": {
+    "request_id": "req_test_001",
+    "llm_confidence": 0.98,
+    "classification_confidence": 0.95,
+    "retry_count": 0,
+    "parent_action_id": null
+  },
+  "timestamps": {
+    "created_at": "2026-01-20T10:00:00Z",
+    "updated_at": "2026-01-20T10:00:00Z",
+    "expires_at": "2026-01-20T10:30:00Z"
+  },
+  "version": "2.0"
+}

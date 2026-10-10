@@ -1,0 +1,178 @@
+@startuml 02_Backend_Orchestration
+skinparam backgroundColor #FFFFFF
+skinparam classAttributeIconSize 0
+skinparam classFontSize 9
+skinparam classFontColor #000000
+skinparam classHeaderBackgroundColor #FFFFFF
+skinparam classHeaderFontColor #000000
+skinparam classBorderColor #000000
+skinparam classBackgroundColor #FFFFFF
+skinparam arrowColor #000000
+skinparam arrowFontColor #000000
+skinparam arrowFontSize 8
+skinparam noteBorderColor #000000
+skinparam noteBackgroundColor #FFFFFF
+skinparam noteFontColor #000000
+skinparam noteFontSize 8
+skinparam packageBorderColor #000000
+skinparam packageBackgroundColor #FFFFFF
+skinparam packageFontColor #000000
+skinparam packageFontStyle bold
+skinparam shadowing false
+skinparam linetype ortho
+skinparam dpi 120
+
+title Diagram 2 — Backend Module: Orchestration & Lifecycle
+
+package "Orchestration Module" {
+
+    class AgentCore {
+        - logger               : Logger
+        - state_manager        : StateManager
+        - memory_extractor     : MemoryExtractor
+        - classifier_threshold : float
+        - max_retries          : int
+        --
+        + process(input_data : Dict) : Dict
+        + confirm_action(action_id : String, user_response : String) : Dict
+        + handle_execution_result(result_data : Dict) : Dict
+        + get_action_status(action_id : String) : Dict
+        # _classify_intent(text : String, language : String) : Dict
+        # _handle_conversation(text : String, user_id : String, language : String, request_id : String) : Dict
+        # _handle_action(text : String, user_id : String, language : String, classification : Dict, request_id : String) : Dict
+        # _handle_pending_confirmation(text : String, user_id : String, language : String, pending_action : Dict, request_id : String) : Dict
+        # _execute_confirmed_action(action_id : String, action_json : Dict) : Dict
+        # _simulate_action_execution(action_id : String, action_data : Dict) : Dict
+        # _validate_action_entities(llm_analysis : Dict, language : String) : Dict
+        # _extract_explicit_name_statement(text : String) : String
+        # _save_user_name_fact(user_id : String, name : String) : bool
+        # _get_saved_user_name(user_id : String) : String
+    }
+
+    class StateManager {
+        - actions            : Dict<String, ActionRecord>
+        - state_history      : Dict<String, List>
+        - valid_transitions  : Dict<String, List>
+        --
+        + create_action(action_id : String, action_json : Dict, initial_state : String) : ActionRecord
+        + get_action(action_id : String) : ActionRecord
+        + update_state(action_id : String, new_state : String, reason : String) : ActionRecord
+        + get_pending_action(user_id : String) : ActionRecord
+        + get_actions_by_state(state : String) : List
+        + get_user_actions(user_id : String) : List
+        + get_state_history(action_id : String) : List
+        + get_statistics() : Dict
+        + delete_action(action_id : String) : bool
+        - _is_valid_transition(old_state : String, new_state : String) : bool
+    }
+
+    enum ActionState {
+        IDLE
+        DRAFT
+        PENDING_CONFIRMATION
+        CONFIRMED
+        EXECUTING
+        COMPLETED
+        FAILED
+        CANCELED
+    }
+
+    class ActionRecord {
+        + action_id      : String
+        + current_state  : ActionState
+        + action_json    : Dict
+        + state_history  : List<StateHistoryEntry>
+        + created_at     : DateTime
+        + updated_at     : DateTime
+    }
+
+    class StateHistoryEntry {
+        + state          : ActionState
+        + previous_state : ActionState
+        + timestamp      : DateTime
+        + reason         : String
+    }
+
+    class SecurityManager {
+        - secret_key : bytes
+        - algorithm  : String
+        --
+        + sign_action(action_json : Dict) : Dict
+        + verify_signature(action_json : Dict, provided_signature : String) : bool
+        + create_jwt_token(user_id : String, additional_claims : Dict, expiration_hours : int) : String
+        + verify_jwt_token(token : String) : Dict
+        + check_permission(user_id : String, action_type : String) : bool
+        + hash_password(password : String) : String
+        + verify_password(password : String, password_hash : String) : bool
+    }
+
+    class Logger {
+        - log_file     : String
+        - max_bytes    : int
+        - backup_count : int
+        --
+        + info(message : String, extra : Dict)
+        + warning(message : String, extra : Dict)
+        + error(message : String, extra : Dict)
+        + log_conversation(user_id : String, input_text : String, response_text : String, request_id : String)
+        + log_action_created(action_id : String, action_json : Dict, user_id : String)
+        + log_action_state_change(action_id : String, old_state : String, new_state : String, reason : String)
+        + log_action_executed(action_id : String, success : bool, result : Dict)
+        + log_security_event(event : String, user_id : String, action_id : String, details : Dict)
+    }
+
+    class Config <<singleton>> {
+        + HOST                         : String
+        + PORT                         : int
+        + DEFAULT_LANGUAGE             : String
+        + WHISPER_MODEL                : String
+        + TTS_SAMPLE_RATE              : int
+        + N8N_WEBHOOK_URL              : String
+        + MQTT_BROKER                  : String
+        + SECRET_KEY                   : String
+        + CLASSIFIER_THRESHOLD         : float
+        + CLARIFICATION_CONFIDENCE_MIN : float
+        + CLARIFICATION_CONFIDENCE_MAX : float
+        + DEMO_MODE                    : bool
+        + ENABLE_N8N_INTEGRATION       : bool
+        + ENABLE_MQTT_INTEGRATION      : bool
+        --
+        + {static} validate_config() : bool
+    }
+}
+
+' ─── RELATIONSHIPS ───────────────────────────────────────────────
+AgentCore *--  StateManager     : manages lifecycle >
+AgentCore *--  Logger           : logs via >
+AgentCore *--  SecurityManager  : secures with >
+
+StateManager "1" *-- "0..*" ActionRecord      : stores >
+ActionRecord "1" *-- "1..*" StateHistoryEntry : tracks >
+ActionRecord  ..>             ActionState      : uses >
+StateManager  ..>             ActionState      : validates transitions >
+
+Config <.. AgentCore        : reads
+Config <.. StateManager     : reads
+Config <.. SecurityManager  : reads
+
+note right of ActionState
+  Terminal states: COMPLETED, CANCELED
+  Retryable: FAILED → DRAFT
+  All transitions validated by
+  StateManager._is_valid_transition()
+end note
+
+note bottom of SecurityManager
+  HMAC-SHA256 for ActionJSON signing.
+  Timing-attack-safe via hmac.compare_digest().
+  JWT implementation planned (placeholder active).
+end note
+
+note bottom of AgentCore
+  Business Rule: If a PENDING_CONFIRMATION
+  action exists for user_id, ALL incoming
+  messages bypass NLP and route directly
+  to the confirmation handler.
+end note
+
+@enduml

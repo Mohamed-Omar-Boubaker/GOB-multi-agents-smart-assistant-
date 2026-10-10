@@ -1,0 +1,163 @@
+@startuml 03_Backend_AI_Engines
+skinparam backgroundColor #FFFFFF
+skinparam classAttributeIconSize 0
+skinparam classFontSize 9
+skinparam classFontColor #000000
+skinparam classHeaderBackgroundColor #FFFFFF
+skinparam classHeaderFontColor #000000
+skinparam classBorderColor #000000
+skinparam classBackgroundColor #FFFFFF
+skinparam arrowColor #000000
+skinparam arrowFontColor #000000
+skinparam arrowFontSize 8
+skinparam noteBorderColor #000000
+skinparam noteBackgroundColor #FFFFFF
+skinparam noteFontColor #000000
+skinparam noteFontSize 8
+skinparam packageBorderColor #000000
+skinparam packageBackgroundColor #FFFFFF
+skinparam packageFontColor #000000
+skinparam packageFontStyle bold
+skinparam shadowing false
+skinparam linetype ortho
+skinparam dpi 120
+
+title Diagram 3 — Backend Module: AI Engines (STT / LLM / TTS)
+
+package "AI Engines Module" {
+
+    ' ── STT ──────────────────────────────────────────────────────
+    class STTEngine {
+        - model_name   : String
+        - device       : String
+        - compute_type : String
+        - model        : WhisperModel
+        --
+        + transcribe(audio_data : String, audio_format : String, language : String, request_id : String) : TranscriptionResult
+        - _decode_base64_audio(audio_data : String, audio_format : String) : TempFile
+        - _run_inference(audio_path : String, language : String) : List<Segment>
+    }
+
+    class TranscriptionResult {
+        + transcription      : String
+        + language           : String
+        + confidence         : float
+        + processing_time_ms : int
+        + model_used         : String
+        + alternatives       : List<String>
+        + timestamp          : DateTime
+    }
+
+    ' ── LLM ──────────────────────────────────────────────────────
+    class LLMClient {
+        - api_key                  : String
+        - model                    : String
+        - temperature              : float
+        - timeout                  : int
+        - url                      : String
+        - conversations            : Dict<String, List>
+        - max_conversation_history : int
+        - conversation_temperature : float
+        --
+        + generate_conversation_response(user_input : String, user_id : String, language : String, memory_context : String) : LLMResponse
+        + analyze_intent(user_input : String, language : String) : IntentAnalysis
+        + clear_history(user_id : String)
+        - _build_system_prompt(memory_context : String) : String
+        - _filter_memory_context_for_input(memory_context : String, user_input : String) : String
+        - _should_reset_conversation_history(user_id : String, user_input : String) : bool
+        - _tokenize_for_relevance(text : String) : Set<String>
+        - _get_last_user_message(user_id : String) : String
+    }
+
+    class LLMResponse {
+        + response   : String
+        + model_used : String
+        + tokens     : int
+    }
+
+    class IntentAnalysis {
+        + primary_intent : String
+        + entities       : Dict
+        + confidence     : float
+        + language       : String
+    }
+
+    ' ── TTS ──────────────────────────────────────────────────────
+    class TTSEngine {
+        - host         : String
+        - port         : int
+        - sample_rate  : int
+        - channels     : int
+        - sample_width : int
+        --
+        + synthesize(text : String, language : String) : AudioResult
+        - _clean_text_for_tts(text : String) : String
+        - _connect_wyoming() : AsyncStream
+        - _build_wav(chunks : List<bytes>) : bytes
+    }
+
+    class AudioResult {
+        + audio_data   : String
+        + audio_format : String
+        + duration_ms  : int
+    }
+
+    ' ── Shared Value Object ──────────────────────────────────────
+    class AudioInput {
+        + audio_data   : String
+        + audio_format : String
+        + language     : String
+        + user_id      : String
+        + request_id   : String
+    }
+}
+
+' ─── EXTERNAL DEPENDENCIES ──────────────────────────────────────
+package "External AI Services" {
+    class WhisperModel <<external>> {
+        + transcribe(audio_path : String, beam_size : int, language : String) : Tuple
+    }
+    class WyomingProtocol <<external>> {
+        + Synthesize(text : String, voice : String)
+        + AudioChunk
+        + AudioStop
+    }
+    class OpenRouterAPI <<external>> {
+        + POST /v1/chat/completions
+    }
+}
+
+' ─── RELATIONSHIPS ───────────────────────────────────────────────
+STTEngine  ..>  TranscriptionResult  : produces >
+STTEngine  ..>  AudioInput           : consumes >
+STTEngine  o--  WhisperModel         : uses >
+
+LLMClient  ..>  LLMResponse          : produces >
+LLMClient  ..>  IntentAnalysis       : produces >
+LLMClient  ..>  OpenRouterAPI        : calls via HTTPS >
+
+TTSEngine  ..>  AudioResult          : produces >
+TTSEngine  ..>  WyomingProtocol      : streams via TCP >
+
+note right of STTEngine
+  Model: faster-whisper tiny/small.
+  Device: CPU (int8 compute type).
+  Input: base64-encoded audio (WAV/WebM).
+  Beam size = 1 for speed.
+end note
+
+note right of LLMClient
+  Backed by OpenRouter (Mistral-7B).
+  Per-user conversation history (max 10 turns).
+  Memory context injected into system prompt.
+  Resets history on topic change detection.
+end note
+
+note right of TTSEngine
+  Streams audio from local Piper server
+  via Wyoming protocol (TCP socket).
+  Removes emojis before synthesis.
+  Sample rate configurable (pitch control).
+end note
+
+@enduml

@@ -1,0 +1,106 @@
+﻿{
+  "name": "Notification - Gmail Webhook to Voice",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "gmail_notification",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "gmail-webhook-1",
+      "name": "Webhook - Receive Gmail Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "webhookId": "gmail-notification-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "const received = $input.item.json;\nconst data = received.body || received;\n\nconst language = (data.lang || data.language || 'fr').toLowerCase();\nconst status = (data.status || 'success').toLowerCase();\nconst recipient = data.recipient || data.target || 'utilisateur';\nconst actionId = data.action_id || `notif_${Date.now()}`;\nconst userId = data.user_id || 'unknown';\n\nlet message = data.message || '';\nif (!message) {\n  if (status === 'success') {\n    message = language === 'en'\n      ? `The email was sent to ${recipient}.`\n      : (language === 'ar'\n        ? `تم ارسال البريد الى ${recipient}.`\n        : `L'email a ete envoye a ${recipient}.`);\n  } else {\n    message = language === 'en'\n      ? `The email was not sent to ${recipient}.`\n      : (language === 'ar'\n        ? `لم يتم ارسال البريد الى ${recipient}.`\n        : `L'email n'a pas ete envoye a ${recipient}.`);\n  }\n}\n\nreturn {\n  json: {\n    action_id: actionId,\n    user_id: userId,\n    language,\n    status,\n    recipient,\n    message\n  }\n};"
+      },
+      "id": "gmail-normalize-1",
+      "name": "Normalize Gmail Notification",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8005/tts",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { text: $json.message, request_id: $execution.id, action_id: $json.action_id } }}",
+        "options": {}
+      },
+      "id": "gmail-tts-1",
+      "name": "Generate TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 0]
+    },
+    {
+      "parameters": {
+        "functionCode": "const tts = $input.item.json;\nconst base = $item(0).$node['Normalize Gmail Notification'].json;\nconst audioUrl = tts.audio_url || tts.body?.audio_url || '';\n\nif (!audioUrl) {\n  throw new Error('TTS did not return audio_url');\n}\n\nreturn {\n  json: {\n    ...base,\n    audio_url: audioUrl,\n    mqtt_voice_topic: 'gob/audio/tts/request',\n    mqtt_voice_payload: {\n      request_id: $execution.id,\n      action_id: base.action_id,\n      user_id: base.user_id,\n      lang: base.language || 'fr',\n      text: base.message,\n      url: audioUrl,\n      ts: Math.floor(Date.now() / 1000)\n    }\n  }\n};"
+      },
+      "id": "gmail-build-mqtt-1",
+      "name": "Build Voice MQTT Payload",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [700, 0]
+    },
+    {
+      "parameters": {
+        "topic": "={{$json.mqtt_voice_topic}}",
+        "sendInputData": false,
+        "message": "={{ JSON.stringify($json.mqtt_voice_payload) }}",
+        "options": {
+          "qos": 1
+        }
+      },
+      "id": "gmail-publish-mqtt-1",
+      "name": "Publish Voice MQTT",
+      "type": "n8n-nodes-base.mqtt",
+      "typeVersion": 1,
+      "position": [940, 0],
+      "credentials": {
+        "mqtt": {
+          "id": "2HlIZ1xVzlUk9hgc",
+          "name": "MQTT account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'ok', action_id: $json.action_id, language: $json.language, audio_url: $json.audio_url, ts: $now.toISO() }) }}",
+        "options": {}
+      },
+      "id": "gmail-respond-1",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1180, 0]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Receive Gmail Event": { "main": [[{ "node": "Normalize Gmail Notification", "type": "main", "index": 0 }]] },
+    "Normalize Gmail Notification": { "main": [[{ "node": "Generate TTS", "type": "main", "index": 0 }]] },
+    "Generate TTS": { "main": [[{ "node": "Build Voice MQTT Payload", "type": "main", "index": 0 }]] },
+    "Build Voice MQTT Payload": { "main": [[{ "node": "Publish Voice MQTT", "type": "main", "index": 0 }]] },
+    "Publish Voice MQTT": { "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "94e0978e0fa5f438c52ed3596bba774713a88da1977e909f23ec9cdf88b64238"
+  },
+  "id": "notif-workflow-gmail-v2",
+  "tags": []
+}

@@ -1,0 +1,56 @@
+# Voice Client Configuration - Phase A (Push-to-Talk)
+# =======================================================
+
+# Audio Recording Settings
+audio:
+  sample_rate: 16000        # 16kHz (good for speech recognition)
+  channels: 1               # Mono
+  chunk_size: 1024          # Buffer size
+  format: int16             # 16-bit PCM
+  device: null              # null = default microphone
+
+# Push-to-Talk Settings (Phase A)
+push_to_talk:
+  enabled: true
+  key: space                # Press SPACE to talk
+  visual_feedback: true     # Show recording indicator
+
+# Backend Connection
+backend:
+  url: http://localhost:8000
+  endpoint: /command/audio
+  timeout: 30
+  language: en
+
+# MQTT Settings (for audio playback)
+mqtt:
+  broker: localhost
+  port: 1883
+  keepalive: 60
+  topic_audio_output: device/audio      # Listen for TTS responses
+  qos: 1
+  client_id: voice_client_pc_001
+
+# Display Settings
+display:
+  show_transcription: true
+  show_response: true
+  show_status: true
+  colors:
+    idle: cyan
+    recording: yellow
+    processing: magenta
+    speaking: green
+    error: red
+
+# Audio Playback
+playback:
+  enabled: true              # Play responses via MQTT
+  volume: 0.8                # 0.0 - 1.0
+
+# Advanced Settings
+advanced:
+  save_recordings: false     # Save recordings to disk (debug)
+  recordings_dir: recordings
+  max_recording_duration: 30 # seconds
+  log_level: INFO           # DEBUG, INFO, WARNING, ERROR

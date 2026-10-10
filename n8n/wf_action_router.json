@@ -1,0 +1,310 @@
+{
+  "name": "Action Router - Routeur Principal",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "action",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ef1cd937-fdc4-4ade-8c34-d80b77d4dfa4",
+      "name": "Webhook - Receive ActionJSON",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        480
+      ],
+      "webhookId": "action-router-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// ✅ Extract ActionJSON from body if present\nconst received = $input.item.json;\n\nconsole.log('📥 Données reçues:', JSON.stringify(received, null, 2));\n\n// Extract from body if webhook format, else use directly\nconst actionJson = received.body || received;\n\n// Ensure language propagation for downstream workflows\nactionJson.context = actionJson.context || {};\nif (!actionJson.context.language && actionJson.language) {\n  actionJson.context.language = actionJson.language;\n}\nif (!actionJson.context.language) {\n  actionJson.context.language = 'fr';\n}\n\nconsole.log('📋 ActionJSON extrait:');\nconsole.log('Action ID:', actionJson.action_id);\nconsole.log('Intent:', actionJson.intent);\nconsole.log('State:', actionJson.state);\nconsole.log('Language:', actionJson.context.language);\nconsole.log('Payload:', JSON.stringify(actionJson.payload));\n\n// Return clean ActionJSON at root level for Switch\nreturn { json: actionJson };"
+      },
+      "id": "98892eba-aac6-450d-b0a3-9241605f5e09",
+      "name": "Extract and Log ActionJSON",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2112,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{$json.intent}}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "control_iot"
+            },
+            {
+              "value2": "send_email"
+            },
+            {
+              "value2": "set_reminder"
+            },
+            {
+              "value2": "web_search"
+            }
+          ]
+        }
+      },
+      "id": "dce4fa15-92e2-4017-acc1-b37d1dd53798",
+      "name": "Route by Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/control_iot",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "024b80e4-30b2-4400-8a9f-e35a3dfbc419",
+      "name": "Call wf_control_iot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        2512,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/send_email",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "5ce32e7c-b996-4415-b603-bd90b64aa541",
+      "name": "Call wf_send_email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        2512,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/set_reminder",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "e82e8082-fa66-4089-90aa-890c7f25d985",
+      "name": "Call wf_set_reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        2512,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/web_search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "b2dd9bc9-e040-43e9-aaea-84a319215fa8",
+      "name": "Call wf_web_search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        2512,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Handle unknown intent\nconst actionJson = $input.item.json;\n\nconsole.error('❌ Unknown intent:', actionJson.intent);\n\nreturn {\n  json: {\n    action_id: actionJson.action_id,\n    state: 'FAILED',\n    error: `Unknown intent: ${actionJson.intent}`,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "b4f90faf-b6ae-432f-a983-5996936f02fa",
+      "name": "Handle Unknown Intent",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2512,
+        880
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "ff40c2b6-7e58-4c9e-9bde-a1377cfd3c8c",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        2720,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  status: 'success',\n  action_id: $json.action_id,\n  execution_id: $execution.id,\n  workflow: $workflow.name,\n  timestamp: $now.toISO()\n}) }}",
+        "options": {}
+      },
+      "id": "a47f114f-19a9-4d4c-a29e-c430487083ba",
+      "name": "Response to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        3120,
+        480
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Receive ActionJSON": {
+      "main": [
+        [
+          {
+            "node": "Extract and Log ActionJSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract and Log ActionJSON": {
+      "main": [
+        [
+          {
+            "node": "Route by Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Intent": {
+      "main": [
+        [
+          {
+            "node": "Call wf_control_iot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call wf_send_email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call wf_set_reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call wf_web_search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call wf_control_iot": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call wf_send_email": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call wf_set_reminder": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call wf_web_search": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Unknown Intent": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Response to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "81e6a8b8-f147-411d-a2ef-e4aec7f01e30",
+  "meta": {
+    "instanceId": "94e0978e0fa5f438c52ed3596bba774713a88da1977e909f23ec9cdf88b64238"
+  },
+  "id": "ct3hnmbeSYrXQHXyAWZcN",
+  "tags": []
+}

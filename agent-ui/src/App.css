@@ -1,0 +1,334 @@
+/**
+ * App.css - Styles globaux pour l'application Agent IA
+ * Phase 1: CSS de base pour layout et états
+ * Phase 6: Background particules animées
+ */
+
+/* Import des styles des composants */
+@import url('./components/EntityBadge/EntityBadge.css');
+@import url('./components/ActionPanel/ActionPanel.css');
+@import url('./components/SettingsPanel/SettingsPanel.css');
+@import url('./components/DeviceManagerPanel/DeviceManagerPanel.css');
+@import url('./components/ContactManagerPanel/ContactManagerPanel.css');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #0a0a0f;
+  min-height: 100vh;
+}
+
+/* ==================== Particules background ==================== */
+#particles-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.app {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+/* ==================== Agent Screen ==================== */
+.agent-screen {
+  width: 100%;
+  max-width: 800px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.agent-screen header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #e0e0e0;
+  text-align: center;
+}
+
+.agent-header-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.agent-header h1 {
+  font-size: 2.1rem;
+  color: #4f5ee0;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.agent-state-badge {
+  background: linear-gradient(135deg, #4f5ee0 0%, #6d55d8 100%);
+  color: white;
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  box-shadow: 0 6px 14px rgba(79, 94, 224, 0.22);
+}
+
+.agent-state-badge.state-idle {
+  background: linear-gradient(135deg, #546174 0%, #738196 100%);
+}
+
+.wake-mode-badge {
+  background: #4caf50;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.wake-mode-dot {
+  width: 8px;
+  height: 8px;
+  background: white;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.agent-screen main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+}
+
+/* ==================== Avatar ==================== */
+.avatar-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.avatar-container p {
+  font-size: 1.5rem;
+  color: #667eea;
+  font-weight: 600;
+}
+
+/* ==================== Waveform ==================== */
+.waveform {
+  height: 60px;
+  background: #f5f5f5;
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #999;
+}
+
+/* ==================== Transcription & Response ==================== */
+.transcription,
+.response {
+  padding: 15px 20px;
+  border-radius: 12px;
+  line-height: 1.6;
+}
+
+.transcription {
+  background: #e3f2fd;
+  border-left: 4px solid #2196f3;
+}
+
+.response {
+  background: #f3e5f5;
+  border-left: 4px solid #9c27b0;
+}
+
+.transcription strong,
+.response strong {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 700;
+}
+
+/* ==================== Entities ==================== */
+.entities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 15px 20px;
+  background: #fff3e0;
+  border-radius: 12px;
+  align-items: center;
+}
+
+.entities strong {
+  font-weight: 700;
+  margin-right: 10px;
+}
+
+.entity {
+  background: #ff9800;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* ==================== Mic Button ==================== */
+.agent-screen footer {
+  display: flex;
+  justify-content: center;
+  padding-top: 20px;
+  border-top: 2px solid #e0e0e0;
+}
+
+.mic-button {
+  width: 200px;
+  height: 60px;
+  border: none;
+  border-radius: 30px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.mic-button.idle {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.mic-button.idle:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.mic-button.idle:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.mic-button.listening {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  animation: pulse 1.5s infinite;
+}
+
+.mic-button.thinking {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+  animation: thinkPulse 1.2s ease-in-out infinite;
+}
+
+.mic-button.speaking {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  color: white;
+  animation: speakPulse 0.8s ease-in-out infinite;
+}
+
+.mic-button.error {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+  color: white;
+  animation: shake 0.5s;
+}
+
+.mic-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ==================== Animations ==================== */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 8px 24px rgba(245, 87, 108, 0.6);
+  }
+}
+
+@keyframes thinkPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 4px 12px rgba(0, 242, 254, 0.35);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 8px 20px rgba(0, 242, 254, 0.55);
+  }
+}
+
+@keyframes speakPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-10px); }
+  75% { transform: translateX(10px); }
+}
+
+/* ==================== Responsive ==================== */
+@media (max-width: 768px) {
+  .agent-screen {
+    padding: 20px;
+  }
+
+  .agent-screen header h1 {
+    font-size: 1.5rem;
+  }
+
+  .avatar-container {
+    min-height: 200px;
+  }
+
+  .mic-button {
+    width: 160px;
+    height: 50px;
+    font-size: 1rem;
+  }
+}

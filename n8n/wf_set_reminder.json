@@ -1,0 +1,178 @@
+{
+  "name": "wf_set_reminder",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "reminder",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "node_webhook",
+      "name": "Webhook — Receive Reminder",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "notes": "Entry point. Receives: {title, description, reminder_datetime (ISO 8601), user_id, timezone}"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Parse and validate incoming reminder data ──────────────\nconst body = $input.first().json.body || $input.first().json;\n\nconst title        = body.title        || 'Rappel';\nconst description  = body.description  || '';\nconst datetimeRaw  = body.reminder_datetime;\nconst userId       = body.user_id      || 'web_user_001';\nconst timezone     = body.timezone     || 'Africa/Tunis';\nconst lang         = body.language     || 'fr';\n\n// Validate datetime\nif (!datetimeRaw) {\n  throw new Error('reminder_datetime is required (ISO 8601 format)');\n}\n\nconst reminderDate = new Date(datetimeRaw);\nif (isNaN(reminderDate.getTime())) {\n  throw new Error(`Invalid datetime: ${datetimeRaw}`);\n}\n\nconst now = new Date();\nif (reminderDate <= now) {\n  throw new Error('reminder_datetime must be in the future');\n}\n\n// Build Google Calendar event times\n// Event lasts 15 minutes starting at reminder time\nconst endDate = new Date(reminderDate.getTime() + 15 * 60 * 1000);\n\nconst startISO = reminderDate.toISOString();\nconst endISO   = endDate.toISOString();\n\n// Build confirmation messages per language\nconst messages = {\n  fr: `✅ Rappel créé : \"${title}\" le ${reminderDate.toLocaleString('fr-FR', {timeZone: timezone})}`,\n  en: `✅ Reminder set: \"${title}\" on ${reminderDate.toLocaleString('en-US',  {timeZone: timezone})}`,\n  ar: `✅ تم ضبط التذكير: \"${title}\" في ${reminderDate.toLocaleString('ar-TN', {timeZone: timezone})}`\n};\n\nreturn [{\n  json: {\n    title,\n    description,\n    reminder_datetime: datetimeRaw,\n    start_iso:  startISO,\n    end_iso:    endISO,\n    user_id:    userId,\n    timezone,\n    language:   lang,\n    confirm_message: messages[lang] || messages['fr'],\n    reminder_id: `reminder_${Date.now()}_${userId}`\n  }\n}];"
+      },
+      "id": "node_parse",
+      "name": "Parse & Validate Datetime",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendarId": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list",
+          "cachedResultName": "primary"
+        },
+        "start": "={{ $json.start_iso }}",
+        "end":   "={{ $json.end_iso }}",
+        "additionalFields": {
+          "summary":     "={{ $json.title }}",
+          "description": "={{ $json.description }}",
+          "timeZone":    "={{ $json.timezone }}",
+          "reminders": {
+            "useDefault": false,
+            "overrides": [
+              { "method": "popup",  "minutes": 0  },
+              { "method": "popup",  "minutes": 10 },
+              { "method": "email",  "minutes": 30 }
+            ]
+          }
+        }
+      },
+      "id": "node_gcal",
+      "name": "Google Calendar — Create Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [680, 180],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "gcal_cred_id",
+          "name": "Google Calendar OAuth2"
+        }
+      },
+      "notes": "Creates event on Google Calendar. Triggers native phone push notification at reminder time (no polling needed)."
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Webhook — Receive Reminder').item.json.body.callback_url || 'http://localhost:8000/callback/n8n' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"action_id\": \"{{ $('Parse & Validate Datetime').item.json.reminder_id }}\",\n  \"status\": \"confirmed\",\n  \"event\": \"reminder_created\",\n  \"gcal_event_id\": \"{{ $json.id }}\",\n  \"gcal_html_link\": \"{{ $json.htmlLink }}\",\n  \"title\": \"{{ $('Parse & Validate Datetime').item.json.title }}\",\n  \"reminder_datetime\": \"{{ $('Parse & Validate Datetime').item.json.reminder_datetime }}\",\n  \"confirm_message\": \"{{ $('Parse & Validate Datetime').item.json.confirm_message }}\",\n  \"user_id\": \"{{ $('Parse & Validate Datetime').item.json.user_id }}\"\n}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "node_callback_created",
+      "name": "Callback — Reminder Created",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 180],
+      "notes": "Notifies backend immediately that the reminder was created. Backend updates state to CONFIRMED and triggers TTS confirmation."
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Parse & Validate Datetime').item.json.reminder_datetime }}",
+        "unit": "exactDateTime"
+      },
+      "id": "node_wait",
+      "name": "Wait Until Reminder Time",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [680, 420],
+      "notes": "n8n pauses execution until the exact reminder datetime. No polling. Execution resumes automatically when time is up."
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Build alert payload when reminder fires ────────────────\nconst data = $('Parse & Validate Datetime').item.json;\nconst lang = data.language || 'fr';\n\nconst alertMessages = {\n  fr: `🔔 Rappel : ${data.title}`,\n  en: `🔔 Reminder: ${data.title}`,\n  ar: `🔔 تذكير: ${data.title}`\n};\n\nconst ttsTexts = {\n  fr: `Rappel ! ${data.title}. Il est l'heure.`,\n  en: `Reminder! ${data.title}. It's time.`,\n  ar: `تذكير! ${data.title}. حان الوقت.`\n};\n\nreturn [{\n  json: {\n    ...data,\n    alert_message: alertMessages[lang] || alertMessages['fr'],\n    tts_text:      ttsTexts[lang]      || ttsTexts['fr'],\n    mqtt_state:    'reminder',\n    fired_at:      new Date().toISOString()\n  }\n}];"
+      },
+      "id": "node_build_alert",
+      "name": "Build Alert Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 420]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Webhook — Receive Reminder').item.json.body.callback_url || 'http://localhost:8000/callback/n8n' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"action_id\": \"{{ $json.reminder_id }}\",\n  \"status\": \"fired\",\n  \"event\": \"reminder_fired\",\n  \"tts_text\": \"{{ $json.tts_text }}\",\n  \"alert_message\": \"{{ $json.alert_message }}\",\n  \"mqtt_state\": \"{{ $json.mqtt_state }}\",\n  \"user_id\": \"{{ $json.user_id }}\",\n  \"fired_at\": \"{{ $json.fired_at }}\"\n}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "node_callback_fired",
+      "name": "Callback — Reminder Fired",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 420],
+      "notes": "Calls backend when reminder fires. Backend will: 1) trigger TTS to speak the reminder aloud, 2) publish MQTT to ESP32 (alert LEDs + audio)"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"success\",\n  \"message\": \"{{ $('Parse & Validate Datetime').item.json.confirm_message }}\",\n  \"reminder_id\": \"{{ $('Parse & Validate Datetime').item.json.reminder_id }}\",\n  \"reminder_datetime\": \"{{ $('Parse & Validate Datetime').item.json.reminder_datetime }}\"\n}"
+      },
+      "id": "node_respond",
+      "name": "Respond to Backend",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 180]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Error handler — log and notify backend ─────────────────\nconst error = $input.first().json;\nconsole.error('[wf_set_reminder] Error:', JSON.stringify(error));\n\nreturn [{\n  json: {\n    status: 'error',\n    error_message: error.message || 'Unknown error in wf_set_reminder',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "node_error",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 560]
+    }
+  ],
+  "connections": {
+    "Webhook — Receive Reminder": {
+      "main": [[{ "node": "Parse & Validate Datetime", "type": "main", "index": 0 }]]
+    },
+    "Parse & Validate Datetime": {
+      "main": [
+        [
+          { "node": "Google Calendar — Create Event", "type": "main", "index": 0 },
+          { "node": "Wait Until Reminder Time",       "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Google Calendar — Create Event": {
+      "main": [[{ "node": "Callback — Reminder Created", "type": "main", "index": 0 }]]
+    },
+    "Callback — Reminder Created": {
+      "main": [[{ "node": "Respond to Backend", "type": "main", "index": 0 }]]
+    },
+    "Wait Until Reminder Time": {
+      "main": [[{ "node": "Build Alert Payload", "type": "main", "index": 0 }]]
+    },
+    "Build Alert Payload": {
+      "main": [[{ "node": "Callback — Reminder Fired", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": ["reminder", "google-calendar", "iot", "voice-agent"],
+  "triggerCount": 1,
+  "updatedAt": "2026-04-27T00:00:00.000Z",
+  "versionId": "1"
+}

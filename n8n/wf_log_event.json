@@ -1,0 +1,41 @@
+{
+  "name": "Log Event - Journalisation",
+  "description": "Workflow de journalisation des événements système",
+  "version": "1.0.0",
+  "nodes": [
+    {
+      "type": "n8n-nodes-base.webhook",
+      "name": "Webhook - Receive Event",
+      "parameters": {
+        "path": "/log_event",
+        "httpMethod": "POST"
+      },
+      "position": [250, 300],
+      "note": "Réception événement à logger"
+    },
+    {
+      "type": "n8n-nodes-base.function",
+      "name": "Format Log Entry",
+      "parameters": {
+        "functionCode": "// TODO: Formatter entrée log\nreturn items;"
+      },
+      "position": [450, 300],
+      "note": "Formatage log"
+    },
+    {
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Send to Log Server",
+      "parameters": {
+        "url": "http://localhost:9200/logs/_doc",
+        "method": "POST"
+      },
+      "position": [650, 300],
+      "note": "Envoi vers serveur logs (Elasticsearch, etc.)"
+    }
+  ],
+  "connections": {},
+  "settings": {
+    "saveExecutionProgress": true
+  },
+  "note": "Workflow journalisation - Traçabilité système"
+}

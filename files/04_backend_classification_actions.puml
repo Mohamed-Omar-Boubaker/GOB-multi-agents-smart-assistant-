@@ -1,0 +1,192 @@
+@startuml 04_Backend_Classification_Actions
+skinparam backgroundColor #FFFFFF
+skinparam classAttributeIconSize 0
+skinparam classFontSize 9
+skinparam classFontColor #000000
+skinparam classHeaderBackgroundColor #FFFFFF
+skinparam classHeaderFontColor #000000
+skinparam classBorderColor #000000
+skinparam classBackgroundColor #FFFFFF
+skinparam arrowColor #000000
+skinparam arrowFontColor #000000
+skinparam arrowFontSize 8
+skinparam noteBorderColor #000000
+skinparam noteBackgroundColor #FFFFFF
+skinparam noteFontColor #000000
+skinparam noteFontSize 8
+skinparam packageBorderColor #000000
+skinparam packageBackgroundColor #FFFFFF
+skinparam packageFontColor #000000
+skinparam packageFontStyle bold
+skinparam shadowing false
+skinparam linetype ortho
+skinparam dpi 120
+
+title Diagram 4 — Backend Module: Classification & Action Pipeline
+
+package "Classification & Actions Module" {
+
+    ' ── Classifier ───────────────────────────────────────────────
+    class IntentClassifier {
+        - method                : String
+        - threshold             : float
+        - conversation_keywords : List<String>
+        - action_keywords       : List<String>
+        - action_verbs          : List<String>
+        - conversation_patterns : List<String>
+        --
+        + classify(text : String, request_id : String) : ClassificationResult
+        - _level1_keywords(text : String) : ClassificationResult
+        - _level2_verb_patterns(text : String) : ClassificationResult
+        - _level3_llm_fallback(text : String) : ClassificationResult
+        - _compute_confidence(matches : int, total : int) : float
+    }
+
+    class ClassificationResult {
+        + classification : String
+        + confidence     : float
+        + method         : String
+        + intent         : String
+        + reasoning      : Dict
+        + timestamp      : DateTime
+    }
+
+    ' ── ActionJSON & sub-objects ─────────────────────────────────
+    class ActionJSON {
+        + action_id  : String
+        + user_id    : String
+        + request_id : String
+        + intent     : String
+        + confirmed  : bool
+        + state      : String
+        + payload    : Dict
+        + context    : ActionContext
+        + security   : ActionSecurity
+        + timestamps : ActionTimestamps
+        + metadata   : ActionMetadata
+    }
+
+    class ActionContext {
+        + original_command : String
+        + language         : String
+        + source           : String
+        + confidence       : float
+    }
+
+    class ActionSecurity {
+        + user_token          : String
+        + signature           : String
+        + signature_algorithm : String
+    }
+
+    class ActionTimestamps {
+        + created_at   : DateTime
+        + updated_at   : DateTime
+        + confirmed_at : DateTime
+        + executed_at  : DateTime
+    }
+
+    class ActionMetadata {
+        + priority        : String
+        + timeout_seconds : int
+        + retry_count     : int
+        + max_retries     : int
+    }
+
+    ' ── Builder ──────────────────────────────────────────────────
+    class ActionBuilder {
+        - device_manager : DeviceManager
+        --
+        + build_action(llm_analysis : IntentAnalysis, user_id : String, original_text : String, language : String) : ActionJSON
+        - _build_payload(intent : String, entities : Dict) : Dict
+        - _build_iot_payload(entities : Dict) : Dict
+        - _build_email_payload(entities : Dict) : Dict
+        - _build_reminder_payload(entities : Dict) : Dict
+        - _build_search_payload(entities : Dict) : Dict
+        - _resolve_device(device_name : String) : Dict
+        - _resolve_contact(recipient_name : String) : Dict
+    }
+
+    ' ── Confirmation ─────────────────────────────────────────────
+    class ConfirmationHandler {
+        - confirm_keywords : List<String>
+        - cancel_keywords  : List<String>
+        - modify_keywords  : List<String>
+        --
+        + generate_confirmation(action_json : ActionJSON) : String
+        + parse_response(input_data : Dict) : ConfirmationParseResult
+        - _contains_keyword(response_text : String, keywords : List<String>) : bool
+        - _format_iot_confirmation(payload : Dict, language : String) : String
+        - _format_email_confirmation(payload : Dict, language : String) : String
+        - _format_reminder_confirmation(payload : Dict, language : String) : String
+    }
+
+    class ConfirmationParseResult {
+        + action_id      : String
+        + parsed_response : ParsedIntent
+        + new_state      : String
+    }
+
+    class ParsedIntent {
+        + intent     : String
+        + confidence : float
+    }
+
+    ' ── Validation ───────────────────────────────────────────────
+    class JSONValidator <<utility>> {
+        + {static} validate_action_json_complete(action_json : Dict) : bool
+        + {static} validate_required_fields(data : Dict, required : List) : bool
+    }
+
+    class ValidationError {
+        + message : String
+        + code    : String
+        + details : Dict
+    }
+}
+
+' ─── RELATIONSHIPS ───────────────────────────────────────────────
+IntentClassifier  ..>  ClassificationResult : produces >
+
+ActionBuilder     ..>  ActionJSON           : creates >
+ActionBuilder     ..>  JSONValidator        : validates with >
+ActionBuilder     ..>  ValidationError      : throws >
+
+ActionJSON *--  ActionContext
+ActionJSON *--  ActionSecurity
+ActionJSON *--  ActionTimestamps
+ActionJSON *--  ActionMetadata
+
+ConfirmationHandler ..>  ActionJSON              : reads >
+ConfirmationHandler ..>  ConfirmationParseResult : produces >
+ConfirmationParseResult *-- ParsedIntent
+
+note right of IntentClassifier
+  3-Level Hybrid Strategy:
+  L1: Keyword matching (FR+EN+AR)
+  L2: Regex verb/pattern matching
+  L3: LLM fallback if confidence < threshold
+  Confidence zones:
+  < 0.40 → reject (ask to repeat)
+  0.40-0.60 → clarification question
+  >= 0.60 → proceed
+end note
+
+note right of ActionBuilder
+  Supported intents:
+  - control_iot (device + action)
+  - send_email (recipient resolved via contacts.json)
+  - set_reminder (time + title)
+  - web_search (query)
+  - open_application (app name)
+  Validates ActionJSON before returning.
+end note
+
+note bottom of ConfirmationHandler
+  Keywords are multilingual (FR/EN/AR).
+  parse_response() detects: confirm | cancel | modify.
+  generate_confirmation() builds human-readable
+  summary from ActionJSON payload per intent type.
+end note
+
+@enduml

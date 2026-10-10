@@ -1,0 +1,206 @@
+/**
+ * FullscreenEyesScreen CSS - Styles pour la page fullscreen wake mode
+ * Basé sur le test HTML complet
+ */
+
+.fullscreen-eyes-screen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #09090e;
+  overflow: hidden;
+  font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+  color: rgba(255, 255, 255, 0.82);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+/* Canvas fullscreen */
+.fullscreen-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.fullscreen-offscreen {
+  display: none;
+}
+
+/* UI Overlay */
+.fullscreen-ui {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Topbar */
+.fullscreen-topbar {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  pointer-events: none;
+}
+
+.fullscreen-logo {
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.22);
+}
+
+.fullscreen-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2a2a3a;
+  transition: background 0.6s, box-shadow 0.6s;
+}
+
+.fullscreen-status-dot.listening {
+  background: #00ddb4;
+  box-shadow: 0 0 8px #00ddb4;
+}
+
+.fullscreen-status-dot.thinking {
+  background: #7c6ef5;
+  box-shadow: 0 0 8px #7c6ef5;
+}
+
+.fullscreen-status-dot.speaking {
+  background: #4aefb4;
+  box-shadow: 0 0 8px #4aefb4;
+}
+
+/* State chip */
+.fullscreen-state-chip {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+  transition: color 0.5s;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Wake word status */
+.fullscreen-wake-status {
+  position: fixed;
+  top: 55px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.22);
+  transition: color 0.4s;
+  pointer-events: none;
+}
+
+.fullscreen-wake-status.active {
+  color: #00ddb4;
+}
+
+/* Hint text */
+.fullscreen-hint {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.30);
+  text-align: center;
+  max-width: 320px;
+  animation: pulseHint 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulseHint {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+
+/* Exit button */
+.fullscreen-exit-btn {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 18px;
+  font-weight: 300;
+  cursor: pointer;
+  pointer-events: all;
+  transition: all 0.2s;
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.fullscreen-exit-btn:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.82);
+  transform: scale(1.05);
+}
+
+.fullscreen-exit-btn:active {
+  transform: scale(0.95);
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .fullscreen-topbar {
+    padding: 16px 20px;
+  }
+  
+  .fullscreen-exit-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+  
+  .fullscreen-hint {
+    bottom: 60px;
+    font-size: 10px;
+    max-width: 280px;
+    padding: 0 20px;
+  }
+}
+
+/* Landscape hint */
+@media (orientation: landscape) and (max-height: 600px) {
+  .fullscreen-state-chip {
+    top: 10px;
+    font-size: 8px;
+  }
+  
+  .fullscreen-wake-status {
+    top: 35px;
+    font-size: 7px;
+  }
+  
+  .fullscreen-hint {
+    bottom: 40px;
+    font-size: 9px;
+  }
+}

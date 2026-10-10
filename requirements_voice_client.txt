@@ -1,0 +1,24 @@
+# Voice Client Dependencies - Phase A (Push-to-Talk)
+# ===================================================
+
+# Audio Recording
+sounddevice==0.5.1          # Cross-platform audio I/O
+numpy==1.26.4               # Audio array processing
+
+# Keyboard Control
+keyboard==0.13.5            # Keyboard event detection
+
+# HTTP Client
+httpx==0.28.1               # Async HTTP client
+
+# MQTT Client
+paho-mqtt==2.1.0            # MQTT protocol
+
+# Audio Playback (already installed)
+pygame==2.6.1               # Audio playback
+
+# Configuration
+PyYAML==6.0.2               # YAML config files
+
+# Utilities
+colorama==0.4.6             # Colored terminal output

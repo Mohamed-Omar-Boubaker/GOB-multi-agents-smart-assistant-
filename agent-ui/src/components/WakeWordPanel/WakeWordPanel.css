@@ -1,0 +1,220 @@
+/**
+ * WakeWordPanel CSS
+ */
+
+.wake-word-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+body.dark-mode .wake-word-panel {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.wake-word-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+body.dark-mode .wake-word-title {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.wake-word-description {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.5;
+}
+
+body.dark-mode .wake-word-description {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.wake-word-input-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.wake-word-input {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #111827;
+  outline: none;
+  transition: all 0.2s;
+}
+
+body.dark-mode .wake-word-input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.wake-word-input::placeholder {
+  color: #9ca3af;
+}
+
+body.dark-mode .wake-word-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.wake-word-input:focus {
+  border-color: #3b82f6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+body.dark-mode .wake-word-input:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(74, 158, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.2);
+}
+
+.wake-word-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wake-save-btn {
+  padding: 10px 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: #3b82f6;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+body.dark-mode .wake-save-btn {
+  background: rgba(74, 158, 255, 0.25);
+  border: 1px solid rgba(74, 158, 255, 0.5);
+  color: #9ed0ff;
+}
+
+.wake-save-btn:hover:not(:disabled) {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+body.dark-mode .wake-save-btn:hover:not(:disabled) {
+  background: rgba(74, 158, 255, 0.35);
+  border-color: rgba(74, 158, 255, 0.7);
+}
+
+.wake-save-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.wake-save-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.wake-word-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+body.dark-mode .wake-word-current {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.wake-word-label {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+body.dark-mode .wake-word-label {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.wake-word-value {
+  color: #0f766e;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+body.dark-mode .wake-word-value {
+  color: #00ddb4;
+}
+
+.wake-word-empty {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+body.dark-mode .wake-word-empty {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.wake-word-warning {
+  padding: 10px 12px;
+  background: rgba(255, 152, 0, 0.1);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+  border-radius: 8px;
+  color: #ff9800;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wake-word-unsupported {
+  padding: 10px 12px;
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  border-radius: 8px;
+  color: #f44336;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .wake-word-panel {
+    padding: 16px;
+    gap: 14px;
+  }
+  
+  .wake-word-input-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .wake-save-btn {
+    width: 100%;
+  }
+}

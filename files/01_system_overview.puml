@@ -1,0 +1,144 @@
+@startuml 01_System_Overview
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontColor #000000
+skinparam defaultFontSize 11
+skinparam arrowColor #000000
+skinparam arrowFontColor #000000
+skinparam packageBorderColor #000000
+skinparam packageBackgroundColor #FFFFFF
+skinparam packageFontColor #000000
+skinparam packageFontStyle bold
+skinparam packageFontSize 12
+skinparam noteBorderColor #000000
+skinparam noteBackgroundColor #FFFFFF
+skinparam noteFontColor #000000
+skinparam rectangleBorderColor #000000
+skinparam rectangleBackgroundColor #FFFFFF
+skinparam rectangleFontColor #000000
+skinparam componentBorderColor #000000
+skinparam componentBackgroundColor #FFFFFF
+skinparam componentFontColor #000000
+skinparam databaseBorderColor #000000
+skinparam databaseBackgroundColor #FFFFFF
+skinparam databaseFontColor #000000
+skinparam shadowing false
+skinparam linetype ortho
+skinparam dpi 120
+
+title Diagram 1 — Global System Architecture (Package Overview)
+
+' ─── HARDWARE LAYER ─────────────────────────────────────────────
+package "Embedded Hardware Layer" {
+    component [ESP32 Device\n(Microcontroller)] as ESP32
+    component [Microphone\n(Audio Input)] as MIC
+    component [Speaker\n(Audio Output)] as SPK
+    MIC --> ESP32
+    ESP32 --> SPK
+}
+
+' ─── FRONTEND LAYER ─────────────────────────────────────────────
+package "Frontend Layer (TypeScript / React / Capacitor)" {
+    component [Agent UI\n(Mobile + Web App)] as UI
+    component [State Machine\n(Zustand Store)] as STORE
+    component [API Service\n(HTTP Client)] as APISVC
+    component [Robot State Publisher\n(MQTT Bridge)] as RSP
+    UI --> STORE
+    STORE --> APISVC
+    STORE --> RSP
+}
+
+' ─── BACKEND LAYER ──────────────────────────────────────────────
+package "Backend Layer (Python / FastAPI)" {
+
+    package "Orchestration" {
+        component [AgentCore\n(Main Pipeline)] as CORE
+        component [StateManager\n(Action Lifecycle)] as SM
+        component [SecurityManager\n(HMAC / JWT)] as SEC
+        component [Logger\n(Structured Logs)] as LOG
+    }
+
+    package "AI Engines" {
+        component [STT Engine\n(Whisper / faster-whisper)] as STT
+        component [LLM Client\n(OpenRouter / Mistral-7B)] as LLM
+        component [TTS Engine\n(Piper / Wyoming)] as TTS
+    }
+
+    package "Classification & Actions" {
+        component [Intent Classifier\n(Hybrid Rules + LLM)] as CLS
+        component [Action Builder\n(ActionJSON Factory)] as AB
+        component [Confirmation Handler\n(Parse User Response)] as CH
+    }
+
+    package "Memory System" {
+        component [Memory Service\n(SQLite Persistence)] as MEMSVC
+        component [Memory Extractor\n(Entity / Emotion / Intent)] as MEMEXT
+    }
+
+    package "Integrations" {
+        component [MQTT Client\n(IoT / ESP32)] as MQTT
+        component [n8n Client\n(Workflow Engine)] as N8N
+        component [Contact Manager] as CM
+        component [Device Manager] as DM
+    }
+}
+
+' ─── DATA LAYER ─────────────────────────────────────────────────
+package "Data Layer" {
+    database "SQLite\nagent_memory.db" as SQLITE {
+        component [user_facts] as UFACTS
+        component [conversations] as CONVS
+    }
+    database "JSON Files\n(Static Data)" as JSONDB {
+        component [contacts.json] as CJSON
+        component [devices.json] as DJSON
+    }
+}
+
+' ─── EXTERNAL SERVICES ──────────────────────────────────────────
+package "External Services" {
+    component [OpenRouter API\n(LLM Inference)] as OPENROUTER
+    component [n8n Workflow\n(Automation Engine)] as N8NSVC
+    component [MQTT Broker\n(Mosquitto)] as BROKER
+}
+
+' ─── RELATIONSHIPS ───────────────────────────────────────────────
+APISVC ..> CORE      : HTTP REST
+RSP    ..> MQTT       : publish state
+
+CORE --> STT
+CORE --> LLM
+CORE --> TTS
+CORE --> CLS
+CORE --> AB
+CORE --> CH
+CORE --> SM
+CORE --> SEC
+CORE --> LOG
+CORE --> MEMSVC
+CORE --> MEMEXT
+CORE --> MQTT
+CORE --> N8N
+
+MEMEXT --> LLM
+CLS    --> LLM
+MEMSVC --> SQLITE
+
+CM --> JSONDB
+DM --> JSONDB
+
+LLM    ..> OPENROUTER : HTTPS API
+N8N    ..> N8NSVC     : Webhook POST
+MQTT   ..> BROKER     : MQTT protocol
+BROKER ..> ESP32      : MQTT protocol
+
+note bottom of CORE
+  Central orchestrator.
+  All AI/action pipelines pass through AgentCore.
+end note
+
+note right of MEMSVC
+  Zero external infrastructure.
+  Embedded SQLite survives restarts.
+end note
+
+@enduml
