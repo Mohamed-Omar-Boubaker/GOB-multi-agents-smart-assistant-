@@ -205,3 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Generated TTS audio
+service/tts_audio/*.wav
+
+# Archive not needed in the repository
+n8n/reminder.zip
+
+# Downloaded speech models
+service/models/*.onnx
+backend/services/models/*.onnx
